@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Rio dos Passos</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f4f6fa; font-family:system-ui,sans-serif; }
+  .login-card { background:#fff; padding:2rem; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.08); width:100%; max-width:360px; }
+  .login-card h1 { margin:0 0 .5rem; font-size:1.4rem; color:#1a2a4a; }
+  .login-card p.sub { margin:0 0 1.5rem; color:#666; font-size:.9rem; }
+  .login-card label { display:block; margin:.75rem 0 .25rem; font-size:.85rem; color:#333; font-weight:600; }
+  .login-card input { width:100%; padding:.6rem .75rem; border:1px solid #d0d5dd; border-radius:6px; font-size:1rem; box-sizing:border-box; }
+  .login-card button { width:100%; margin-top:1.25rem; padding:.7rem; background:#1a5fb4; color:#fff; border:none; border-radius:6px; font-size:1rem; font-weight:600; cursor:pointer; }
+  .login-card button:disabled { opacity:.6; cursor:wait; }
+  .login-card .err { margin-top:1rem; padding:.6rem; background:#fee; color:#c00; border-radius:6px; font-size:.85rem; display:none; }
+</style>
+</head>
+<body>
+  <form class="login-card" id="login-form">
+    <h1>Imobiliária Rio dos Passos</h1>
+    <p class="sub">Entre com seu email e senha cadastrados.</p>
+    <label for="email">Email</label>
+    <input type="email" id="email" required autocomplete="username">
+    <label for="password">Senha</label>
+    <input type="password" id="password" required autocomplete="current-password">
+    <button type="submit" id="submit-btn">Entrar</button>
+    <div class="err" id="err"></div>
+  </form>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-sync.js"></script>
+  <script>
+    (async () => {
+      const err = document.getElementById("err");
+      if (!window.SupabaseSync) {
+        err.textContent = "Nao foi possivel carregar a conexao online. Verifique a internet e recarregue.";
+        err.style.display = "block";
+        document.getElementById("submit-btn").disabled = true;
+        return;
+      }
+      const user = await window.SupabaseSync.getCurrentUser();
+      if (user) location.href = "index.html";
+    })();
+
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("submit-btn");
+      const err = document.getElementById("err");
+      err.style.display = "none";
+      btn.disabled = true; btn.textContent = "Entrando...";
+      try {
+        await window.SupabaseSync.signIn(
+          document.getElementById("email").value.trim(),
+          document.getElementById("password").value
+        );
+        location.href = "index.html";
+      } catch (e2) {
+        err.textContent = "Falha no login: " + (e2.message || e2);
+        err.style.display = "block";
+        btn.disabled = false; btn.textContent = "Entrar";
+      }
+    });
+  </script>
+</body>
+</html>

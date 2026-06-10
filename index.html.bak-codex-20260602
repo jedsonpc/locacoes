@@ -1,0 +1,962 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Imobiliaria Rio dos Passos Ltda - Gestao de Locacoes</title>
+    <meta name="theme-color" content="#5c171b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Rio Passos" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="login-screen" id="login-screen" aria-label="Acesso ao sistema">
+      <form class="login-card" id="login-form">
+        <img class="login-logo" src="logo-imobiliaria-rio.svg" alt="Imobiliaria Rio dos Passos Ltda" />
+        <h1>Acesso restrito</h1>
+        <p>Entre para consultar receitas, despesas, contratos e relatorios.</p>
+        <label>
+          Usuario
+          <input name="username" autocomplete="username" required placeholder="admin" />
+        </label>
+        <label>
+          Senha
+          <input name="password" type="password" autocomplete="current-password" required placeholder="Senha" />
+        </label>
+        <button class="primary-button" type="submit">Entrar</button>
+        <span class="form-message" id="login-message"></span>
+      </form>
+    </section>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="brand-logo" src="logo-imobiliaria-rio.svg" alt="Imobiliaria Rio dos Passos Ltda" />
+          <div>
+            <h1>Imobiliaria Rio dos Passos Ltda</h1>
+            <p>Imoveis comerciais, receitas, contratos e despesas</p>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Navegacao principal">
+          <button class="nav-button active" data-view="dashboard" type="button">Painel</button>
+          <button class="nav-button" data-view="properties" type="button">Imoveis</button>
+          <button class="nav-button" data-view="clients" type="button">Clientes</button>
+          <button class="nav-button" data-view="contracts" type="button">Contratos</button>
+          <button class="nav-button" data-view="payments" type="button">Receitas</button>
+          <button class="nav-button" data-view="expenses" type="button">Despesas</button>
+          <button class="nav-button" data-view="financial-erp" type="button">ERP financeiro</button>
+          <button class="nav-button" data-view="reports" type="button">Relatorios</button>
+          <button class="nav-button" data-view="settings" type="button">Acesso e nuvem</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="topbar">
+          <div>
+            <p class="eyebrow">Controle operacional</p>
+            <h2 id="view-title">Painel</h2>
+          </div>
+          <div class="topbar-actions">
+            <span class="sync-status" id="current-user-badge">Usuario nao identificado</span>
+            <span class="sync-status" id="sync-status">Offline local</span>
+            <button class="ghost-button" id="seed-data" type="button">Carregar exemplo</button>
+            <button class="danger-button" id="clear-data" type="button">Limpar dados</button>
+            <button class="ghost-button" id="logout" type="button">Sair</button>
+          </div>
+        </section>
+
+        <section class="view active" id="dashboard">
+          <div class="metrics-grid">
+            <article class="metric">
+              <span>Imoveis cadastrados</span>
+              <strong id="metric-properties">0</strong>
+            </article>
+            <article class="metric">
+              <span>Contratos ativos</span>
+              <strong id="metric-active-contracts">0</strong>
+            </article>
+            <article class="metric">
+              <span>Receita mensal</span>
+              <strong id="metric-revenue">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Despesas registradas</span>
+              <strong id="metric-expenses">R$ 0,00</strong>
+            </article>
+          </div>
+
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>Vencimentos e reajustes</h3>
+                <span id="upcoming-count">0 itens</span>
+              </div>
+              <div class="list" id="upcoming-list"></div>
+            </section>
+
+            <section class="panel financial-dashboard-panel">
+              <div class="panel-header">
+                <h3>Dashboard financeiro por imovel</h3>
+                <span id="financial-period-caption">Competencia atual, ano e acumulado</span>
+              </div>
+              <div class="table-wrap">
+                <table class="financial-dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Imovel</th>
+                      <th>Faturamento</th>
+                      <th>Despesas</th>
+                      <th>Liquido</th>
+                      <th>Liquido medio / m2</th>
+                    </tr>
+                  </thead>
+                  <tbody id="property-result-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="properties">
+          <form class="form-grid panel" id="property-form">
+            <input type="hidden" name="id" />
+            <label>
+              Descricao do imovel
+              <input name="description" required placeholder="Sala 204, terreno BR-101..." />
+            </label>
+            <label>
+              Tipo
+              <select name="type" required>
+                <option value="">Selecione</option>
+                <option>Sala comercial</option>
+                <option>Terreno</option>
+                <option>Area comercial</option>
+                <option>Galpao</option>
+                <option>Loja</option>
+              </select>
+            </label>
+            <label>
+              Area do imovel
+              <input name="area" required placeholder="Ex.: 120 m2" />
+            </label>
+            <label>
+              Localizacao
+              <input name="location" required placeholder="Endereco, bairro, cidade" />
+            </label>
+            <label>
+              Valor do imovel / investimento
+              <input name="investmentValue" type="number" min="0" step="0.01" placeholder="Opcional para ROI" />
+            </label>
+            <label class="wide">
+              Documentacao no Google Drive
+              <input name="documentLink" type="url" placeholder="https://drive.google.com/..." />
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar imovel</button>
+              <button class="ghost-button" id="open-property-document" type="button">Abrir documentacao</button>
+              <button class="ghost-button" data-reset="property-form" type="button">Novo</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Descricao</th>
+                  <th>Tipo</th>
+                  <th>Area</th>
+                  <th>Localizacao</th>
+                  <th>Investimento</th>
+                  <th>Documentacao</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="properties-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="clients">
+          <form class="form-grid panel" id="client-form">
+            <input type="hidden" name="id" />
+            <label>
+              CNPJ ou CPF
+              <input name="document" required placeholder="00.000.000/0000-00 ou CPF" />
+            </label>
+            <label>
+              Nome
+              <input name="name" required placeholder="Razao social ou nome" />
+            </label>
+            <label>
+              Pessoa para contato
+              <input name="contact" required placeholder="Responsavel" />
+            </label>
+            <label>
+              Telefone / WhatsApp
+              <input name="phone" required placeholder="5585999999999" />
+            </label>
+            <label>
+              E-mail
+              <input name="email" type="email" placeholder="cliente@email.com" />
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar cliente</button>
+              <button class="ghost-button" data-reset="client-form" type="button">Novo</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Documento</th>
+                  <th>Nome</th>
+                  <th>Contato</th>
+                  <th>Telefone</th>
+                  <th>E-mail</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="clients-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="contracts">
+          <div class="notice panel">
+            <strong>Envio com anexos pelo WhatsApp</strong>
+            <span>Em celulares compatÃ­veis, o app tenta compartilhar o arquivo gerado diretamente. No PC, ele baixa o anexo e abre o WhatsApp com a mensagem pronta para anexar manualmente.</span>
+          </div>
+          <form class="form-grid panel" id="contract-form">
+            <input type="hidden" name="id" />
+            <label>
+              Imovel
+              <select name="propertyId" required></select>
+            </label>
+            <label>
+              Cliente
+              <select name="clientId" required></select>
+            </label>
+            <label>
+              Inicio da vigencia
+              <input name="startDate" type="date" required />
+            </label>
+            <label>
+              Termino da vigencia
+              <input name="endDate" type="date" required />
+            </label>
+            <label>
+              Valor mensal
+              <input name="monthlyValue" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              Periodicidade do reajuste
+              <select name="adjustmentFrequency" required>
+                <option>Anual</option>
+                <option>Semestral</option>
+                <option>Trimestral</option>
+                <option>Sem reajuste</option>
+              </select>
+            </label>
+            <label>
+              Forma de reajuste
+              <select name="adjustmentMethod" required>
+                <option>IPCA</option>
+                <option>IGP-M</option>
+                <option>INPC</option>
+                <option>Percentual fixo</option>
+                <option>Negociacao entre as partes</option>
+              </select>
+            </label>
+            <label>
+              Dia de vencimento
+              <input name="dueDay" type="number" min="1" max="31" required value="10" />
+            </label>
+            <fieldset class="wide charge-fieldset">
+              <legend>Responsabilidade por impostos e taxas</legend>
+              <label>
+                Taxa de condominio - vence dia 05
+                <select name="condoFeeResponsible" required>
+                  <option value="cliente">Cliente</option>
+                  <option value="locador">Locador</option>
+                </select>
+              </label>
+              <label>
+                IPTU - vence em 10/02
+                <select name="iptuResponsible" required>
+                  <option value="cliente">Cliente</option>
+                  <option value="locador">Locador</option>
+                </select>
+              </label>
+              <label>
+                SPU - vence em 30/06
+                <select name="spuResponsible" required>
+                  <option value="cliente">Cliente</option>
+                  <option value="locador">Locador</option>
+                </select>
+              </label>
+              <label>
+                Taxa de bombeiros - vence em 31/08
+                <select name="fireFeeResponsible" required>
+                  <option value="cliente">Cliente</option>
+                  <option value="locador">Locador</option>
+                </select>
+              </label>
+            </fieldset>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar contrato</button>
+              <button class="ghost-button" data-reset="contract-form" type="button">Novo</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Cliente</th>
+                  <th>Vigencia</th>
+                  <th>Valor</th>
+                  <th>Reajuste</th>
+                  <th>Taxas</th>
+                  <th>Contato</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="contracts-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="expenses">
+          <form class="form-grid panel" id="expense-form">
+            <input type="hidden" name="id" />
+            <label>
+              Imovel
+              <select name="propertyId" required></select>
+            </label>
+            <label>
+              Tipo de despesa
+              <select name="expenseType" required>
+                <option>Manutencao</option>
+                <option>Impostos e taxas</option>
+                <option>Condominio</option>
+                <option>Seguro</option>
+                <option>Servicos terceiros</option>
+                <option>Outros</option>
+              </select>
+            </label>
+            <label>
+              Data
+              <input name="expenseDate" type="date" required />
+            </label>
+            <label>
+              Valor
+              <input name="amount" type="number" min="0" step="0.01" required />
+            </label>
+            <label class="wide">
+              Observacao
+              <textarea name="note" rows="3" placeholder="Detalhes da apropriacao"></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar despesa</button>
+              <button class="ghost-button" data-reset="expense-form" type="button">Nova</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Tipo</th>
+                  <th>Data</th>
+                  <th>Valor</th>
+                  <th>Observacao</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="payments">
+          <form class="form-grid panel" id="payment-form">
+            <input type="hidden" name="id" />
+            <label>
+              Imovel
+              <select name="propertyId" required></select>
+            </label>
+            <input type="hidden" name="contractId" />
+            <label>
+              Codigo do contrato
+              <input name="contractCode" type="text" readonly placeholder="Selecione um imovel com contrato" />
+            </label>
+            <label>
+              Nome do locador
+              <input name="lessorName" type="text" readonly placeholder="Vinculado ao contrato" />
+            </label>
+            <label>
+              Data do pagamento
+              <input name="paymentDate" type="date" required />
+            </label>
+            <label>
+              Valor da receita
+              <input name="amount" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              Encargo
+              <input name="chargeAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
+            </label>
+            <label>
+              Valor total
+              <input name="totalAmount" type="number" min="0" step="0.01" readonly />
+            </label>
+            <label class="wide">
+              Historico
+              <textarea name="history" rows="3" placeholder="Observacao da receita, comprovante ou detalhe financeiro"></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar receita</button>
+              <button class="ghost-button" data-reset="payment-form" type="button">Novo</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Contrato</th>
+                  <th>Locador</th>
+                  <th>Data</th>
+                  <th>Receita</th>
+                  <th>Encargo</th>
+                  <th>Total</th>
+                  <th>Historico</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="payments-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="financial-erp">
+          <div class="report-actions panel">
+            <div>
+              <h3>ERP financeiro imobiliario</h3>
+              <p>Contas a receber, inadimplencia, fluxo de caixa, DRE e rentabilidade por imovel.</p>
+            </div>
+            <div class="export-actions">
+              <button class="primary-button" id="erp-export-pdf" type="button">Exportar PDF</button>
+              <button class="primary-button" id="erp-export-excel" type="button">Exportar Excel</button>
+              <button class="ghost-button" id="erp-export-csv" type="button">Exportar CSV</button>
+            </div>
+          </div>
+          <div class="filters panel">
+            <label>
+              Competencia inicial
+              <input id="erp-start" type="month" />
+            </label>
+            <label>
+              Competencia final
+              <input id="erp-end" type="month" />
+            </label>
+          </div>
+          <div class="metrics-grid">
+            <article class="metric">
+              <span>Recebiveis previstos</span>
+              <strong id="erp-expected-revenue">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Recebido no periodo</span>
+              <strong id="erp-received-revenue">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Inadimplencia vencida</span>
+              <strong id="erp-overdue-total">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Saldo de caixa</span>
+              <strong id="erp-cash-balance">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Margem operacional</span>
+              <strong id="erp-operating-margin">0%</strong>
+            </article>
+            <article class="metric">
+              <span>ROI anualizado</span>
+              <strong id="erp-roi">0%</strong>
+            </article>
+            <article class="metric">
+              <span>Despesas operacionais</span>
+              <strong id="erp-expenses-total">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Resultado operacional</span>
+              <strong id="erp-operating-result">R$ 0,00</strong>
+            </article>
+          </div>
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>DRE imobiliaria</h3>
+                <span id="erp-dre-period">Periodo selecionado</span>
+              </div>
+              <div class="dre-list" id="erp-dre-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h3>Fluxo de caixa</h3>
+                <span>Entradas, saidas e saldo por mes</span>
+              </div>
+              <div class="table-wrap">
+                <table class="compact-table">
+                  <thead>
+                    <tr>
+                      <th>Competencia</th>
+                      <th>Entradas</th>
+                      <th>Saidas</th>
+                      <th>Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody id="erp-cashflow-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <div class="table-wrap panel">
+            <div class="panel-header">
+              <h3>Contas a receber automaticas</h3>
+              <span>Geradas pelos contratos ativos no periodo</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Vencimento</th>
+                  <th>Imovel</th>
+                  <th>Cliente</th>
+                  <th>Previsto</th>
+                  <th>Recebido</th>
+                  <th>Saldo</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="erp-receivables-body"></tbody>
+            </table>
+          </div>
+          <div class="split-layout">
+            <section class="table-wrap panel">
+              <div class="panel-header">
+                <h3>Despesas por categoria</h3>
+                <span>Participacao no periodo</span>
+              </div>
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Categoria</th>
+                    <th>Total</th>
+                    <th>Participacao</th>
+                  </tr>
+                </thead>
+                <tbody id="erp-expense-category-body"></tbody>
+              </table>
+            </section>
+            <section class="table-wrap panel">
+              <div class="panel-header">
+                <h3>Rentabilidade por imovel</h3>
+                <span>Receita, despesas, margem e ROI</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Imovel</th>
+                    <th>Receita</th>
+                    <th>Despesas</th>
+                    <th>Resultado</th>
+                    <th>Margem</th>
+                    <th>ROI anual</th>
+                  </tr>
+                </thead>
+                <tbody id="erp-property-profitability-body"></tbody>
+              </table>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="reports">
+          <div class="report-actions panel">
+            <div>
+              <h3>Relatorios analiticos e gerenciais</h3>
+              <p>Use os filtros abaixo para analisar receitas, despesas, contratos e vencimentos.</p>
+            </div>
+            <div class="report-buttons">
+              <button class="ghost-button" id="export-csv" type="button">Exportar CSV</button>
+              <button class="ghost-button" id="export-excel" type="button">Exportar Excel</button>
+              <button class="primary-button" id="export-pdf" type="button">Gerar PDF</button>
+            </div>
+          </div>
+          <div class="report-mode panel" role="group" aria-label="Tipo de relatorio">
+            <button class="mode-button active" data-report-mode="analytic" type="button">Analitico</button>
+            <button class="mode-button" data-report-mode="summary" type="button">Sintetico / gerencial</button>
+          </div>
+          <div class="filters panel">
+            <label>
+              Imovel
+              <select id="report-property"></select>
+            </label>
+            <label>
+              Cliente
+              <select id="report-client"></select>
+            </label>
+            <label>
+              Situacao
+              <select id="report-status">
+                <option value="all">Todos</option>
+                <option value="active">Ativos</option>
+                <option value="ending">A vencer em 90 dias</option>
+                <option value="expired">Encerrados</option>
+              </select>
+            </label>
+            <label>
+              Despesa
+              <select id="report-expense-type">
+                <option value="all">Todas</option>
+                <option>Manutencao</option>
+                <option>Impostos e taxas</option>
+                <option>Condominio</option>
+                <option>Seguro</option>
+                <option>Servicos terceiros</option>
+                <option>Outros</option>
+              </select>
+            </label>
+            <label>
+              Inicio
+              <input id="report-start" type="date" />
+            </label>
+            <label>
+              Fim
+              <input id="report-end" type="date" />
+            </label>
+            <label>
+              Valor minimo
+              <input id="report-min-value" type="number" min="0" step="0.01" placeholder="R$" />
+            </label>
+            <label>
+              Valor maximo
+              <input id="report-max-value" type="number" min="0" step="0.01" placeholder="R$" />
+            </label>
+          </div>
+          <div class="metrics-grid">
+            <article class="metric">
+              <span>Receita recebida</span>
+              <strong id="report-revenue">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Despesas do locador</span>
+              <strong id="report-owner-expenses">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Receita liquida</span>
+              <strong id="report-net-revenue">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Encargos recebidos</span>
+              <strong id="report-tenant-charges">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Contratos filtrados</span>
+              <strong id="report-contract-count">0</strong>
+            </article>
+            <article class="metric">
+              <span>Ticket medio</span>
+              <strong id="report-average-ticket">R$ 0,00</strong>
+            </article>
+            <article class="metric">
+              <span>Maior receita</span>
+              <strong id="report-top-property">-</strong>
+            </article>
+            <article class="metric">
+              <span>Margem liquida</span>
+              <strong id="report-net-margin">0%</strong>
+            </article>
+          </div>
+          <div class="summary-report" id="summary-report">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>Resumo executivo</h3>
+                <span id="summary-period">Periodo filtrado</span>
+              </div>
+              <div class="summary-grid">
+                <article class="summary-item">
+                  <span>Imoveis com movimento</span>
+                  <strong id="summary-properties">0</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Clientes atendidos</span>
+                  <strong id="summary-clients">0</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Contratos ativos</span>
+                  <strong id="summary-active-contracts">0</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Contratos a vencer</span>
+                  <strong id="summary-ending-contracts">0</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Receita recebida</span>
+                  <strong id="summary-gross-revenue">R$ 0,00</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Despesas apropriadas</span>
+                  <strong id="summary-entered-expenses">R$ 0,00</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Resultado liquido</span>
+                  <strong id="summary-net-result">R$ 0,00</strong>
+                </article>
+                <article class="summary-item">
+                  <span>Margem liquida</span>
+                  <strong id="summary-net-margin">0%</strong>
+                </article>
+              </div>
+            </section>
+            <div class="table-wrap panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Indicador</th>
+                    <th>Resultado</th>
+                    <th>Leitura gerencial</th>
+                  </tr>
+                </thead>
+                <tbody id="summary-report-body"></tbody>
+              </table>
+            </div>
+            <div class="table-wrap panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Imovel</th>
+                    <th>Receita</th>
+                    <th>Encargos</th>
+                    <th>Despesas</th>
+                    <th>Resultado</th>
+                    <th>Participacao na receita</th>
+                  </tr>
+                </thead>
+                <tbody id="summary-property-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytic-report split-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>Despesas por imovel</h3>
+                <span>apropriadas no formulario</span>
+              </div>
+              <div class="chart" id="expense-chart"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h3>Receita liquida por imovel</h3>
+                <span>receita menos despesas do locador</span>
+              </div>
+              <div class="chart" id="net-chart"></div>
+            </section>
+          </div>
+          <div class="analytic-report table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Data</th>
+                  <th>Receita</th>
+                  <th>Encargo</th>
+                  <th>Total recebido</th>
+                  <th>Historico</th>
+                </tr>
+              </thead>
+              <tbody id="revenue-report-body"></tbody>
+            </table>
+          </div>
+          <div class="analytic-report table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Receita recebida</th>
+                  <th>Despesas apropriadas</th>
+                  <th>Taxas do locador</th>
+                  <th>Receita liquida</th>
+                </tr>
+              </thead>
+              <tbody id="property-report-body"></tbody>
+            </table>
+          </div>
+          <div class="analytic-report table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Despesa</th>
+                  <th>Quantidade</th>
+                  <th>Total</th>
+                  <th>Participacao</th>
+                </tr>
+              </thead>
+              <tbody id="expense-type-report-body"></tbody>
+            </table>
+          </div>
+          <div class="analytic-report table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Cliente</th>
+                  <th>Encargo</th>
+                  <th>Responsavel</th>
+                  <th>Vencimento base</th>
+                  <th>Vencimento ajustado</th>
+                </tr>
+              </thead>
+              <tbody id="charges-report-body"></tbody>
+            </table>
+          </div>
+          <div class="analytic-report table-wrap panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imovel</th>
+                  <th>Cliente</th>
+                  <th>Contato</th>
+                  <th>Vigencia</th>
+                  <th>Valor mensal</th>
+                  <th>Despesa vinculada</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="reports-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="settings">
+          <form class="form-grid panel" id="access-form">
+            <div class="form-intro wide">
+              <h3>Acesso ao sistema</h3>
+              <p>Cadastre, altere ou exclua usuarios de login neste navegador. Para ambientes com equipe, use tambem uma base online com regras de seguranca.</p>
+            </div>
+            <input type="hidden" name="id" />
+            <label>
+              Usuario
+              <input name="username" required />
+            </label>
+            <label>
+              Senha
+              <input name="password" type="password" minlength="6" placeholder="Minimo de 6 caracteres" />
+            </label>
+            <label>
+              Perfil
+              <select name="role" required>
+                <option value="admin">Administrador</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="operacional">Operacional</option>
+                <option value="consulta">Consulta</option>
+              </select>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar usuario</button>
+              <button class="ghost-button" data-reset="access-form" type="button">Novo</button>
+            </div>
+          </form>
+          <div class="table-wrap panel">
+            <table class="access-table">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Perfil</th>
+                  <th>Senha</th>
+                  <th>Atualizado em</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="access-users-body"></tbody>
+            </table>
+          </div>
+
+          <form class="form-grid panel" id="sync-form">
+            <div class="form-intro wide">
+              <h3>Sincronizacao online</h3>
+              <p>Os dados sao sincronizados automaticamente no Supabase quando houver login online. O endpoint HTTPS abaixo fica como alternativa manual.</p>
+            </div>
+            <label class="wide">
+              Endpoint HTTPS
+              <input name="endpoint" type="url" placeholder="https://sua-api.com/locacoes" />
+            </label>
+            <label class="wide">
+              Token de acesso
+              <input name="token" type="password" placeholder="Opcional" />
+            </label>
+            <div class="form-actions wide">
+              <button class="primary-button" type="submit">Salvar configuracao</button>
+              <button class="ghost-button" id="sync-download" type="button">Baixar do Supabase</button>
+              <button class="ghost-button" id="sync-upload" type="button">Enviar este navegador</button>
+            </div>
+            <span class="form-message wide" id="settings-message"></span>
+          </form>
+          <div class="form-grid panel" id="update-settings">
+            <div class="form-intro wide">
+              <h3>Atualizacao do app</h3>
+              <p>Quando houver uma nova publicacao no GitHub Pages, o app pode buscar e aplicar a versao mais recente automaticamente.</p>
+            </div>
+            <label class="toggle-field wide">
+              <input id="auto-update-enabled" type="checkbox" />
+              <span>Atualizar automaticamente quando uma nova versao estiver disponivel</span>
+            </label>
+            <div class="form-actions wide">
+              <button class="ghost-button" id="check-app-update" type="button">Verificar atualizacao agora</button>
+            </div>
+            <span class="form-message wide" id="app-update-status">Aguardando verificacao.</span>
+          </div>
+          <div class="table-wrap panel">
+            <div class="panel-header">
+              <h3>Auditoria e logs de alteracao</h3>
+              <span>Ultimos eventos de acesso e movimentacao financeira</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Data e hora</th>
+                  <th>Usuario</th>
+                  <th>Acao</th>
+                  <th>Modulo</th>
+                  <th>Tipo</th>
+                  <th>Resumo</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="empty-template">
+      <div class="empty-state">Nenhum registro encontrado.</div>
+    </template>
+
+    <!-- Bibliotecas para exportacao em Excel (.xlsx) e PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="supabase-config.js" defer></script>
+    <script src="supabase-sync.js?v=1.7.1" defer></script>
+    <script src="update-checker.js?v=1.7.1" defer></script>
+    <script src="app.js?v=1.7.1" defer></script>
+  </body>
+</html>

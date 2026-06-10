@@ -1,0 +1,69 @@
+Gestao de Locacoes - pacote PWA
+Imobiliaria Rio dos Passos Ltda
+
+Acesso inicial
+
+Usuario: admin
+Senha: admin123
+
+Depois de entrar, abra "Acesso e nuvem" para alterar usuario e senha.
+Agora tambem e possivel cadastrar novos usuarios, alterar senhas e excluir acessos, mantendo pelo menos um usuario ativo.
+
+Como instalar no desktop e celular
+
+1. Publique todos os arquivos desta pasta em um endereco HTTPS.
+   Exemplos: Netlify, Vercel, GitHub Pages, servidor proprio ou hospedagem do seu dominio.
+
+2. Abra o endereco publicado no Google Chrome, Microsoft Edge ou Safari.
+
+3. No desktop:
+   - Chrome/Edge: clique no icone de instalar app na barra de endereco.
+   - Se o icone nao aparecer, abra o menu do navegador e use "Instalar app".
+
+4. No celular:
+   - Android/Chrome: menu do navegador > "Adicionar a tela inicial" ou "Instalar app".
+   - iPhone/Safari: compartilhar > "Adicionar a Tela de Inicio".
+
+Atualizacao automatica do app
+
+Este pacote ja inclui service worker com atualizacao automatica.
+Quando voce substituir os arquivos no endereco publicado, os aparelhos instalados recebem a nova versao ao abrir o app novamente.
+
+Compartilhamento entre desktop e celular
+
+Importante: este app salva os cadastros no armazenamento local do navegador.
+Isso significa que desktop e celular instalam o mesmo app, mas os dados nao ficam sincronizados entre aparelhos automaticamente.
+
+Esta versao inclui uma tela de sincronizacao online em "Acesso e nuvem".
+Ela aceita um endpoint HTTPS que responda:
+- GET: retorna um JSON com os dados do app.
+- PUT: recebe um JSON com os dados atuais do app.
+
+O token informado e enviado no cabecalho Authorization como Bearer token.
+
+Voce pode usar uma API propria, Supabase Edge Function, Firebase Function, Airtable/Make/Zapier ou outro servico que aceite GET e PUT.
+
+Sem essa base online, cada aparelho mantem seus proprios imoveis, clientes, contratos e despesas.
+
+Relatorios e PDF
+
+A tela de relatorios agora tem filtros por imovel, cliente, situacao, tipo de despesa, periodo e faixa de valor.
+Tambem ha alternancia entre relatorio analitico e relatorio sintetico/gerencial.
+O botao "Gerar PDF" abre uma versao de impressao do relatorio. No navegador, escolha "Salvar como PDF".
+O botao "Exportar Excel" baixa uma planilha .xls com os relatorios filtrados.
+
+Publicacao web
+
+Esta versao inclui arquivos de configuracao para publicacao estatica no Netlify e Vercel:
+- netlify.toml
+- vercel.json
+- package.json
+
+Arquivos principais
+
+- index.html: tela do aplicativo
+- app.js: regras, calculos e dados
+- styles.css: visual
+- manifest.webmanifest: instalacao como app
+- sw.js: cache offline e atualizacao automatica
+- icon.svg: icone do app

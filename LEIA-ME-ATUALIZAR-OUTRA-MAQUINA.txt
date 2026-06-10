@@ -1,0 +1,10 @@
+﻿Rio Passos - Atualizar outra maquina
+
+1. Feche o app na outra maquina.
+2. Extraia este ZIP em uma pasta temporaria.
+3. Copie todos os arquivos extraidos para a pasta onde o app antigo esta instalado/publicado.
+4. Substitua os arquivos existentes quando o Windows perguntar.
+5. Abra o app novamente. Se houver dados na nuvem, entre no login e use Acesso e nuvem > Baixar do Supabase.
+
+Versao do pacote: local-1.7.4
+Gerado em: 2026-06-05
