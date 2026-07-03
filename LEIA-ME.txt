@@ -1,49 +1,29 @@
-Rio dos Passos - pacote de correcoes v1.6.0
-============================================
+APP LOCACAO - GESTAO DE EXCELENCIA
 
-Arquivos para substituir no seu projeto (na raiz, no mesmo lugar dos atuais):
+Para abrir com melhor funcionamento:
+1. Clique duas vezes em abrir-app-locacao.bat ou abrir-app-locação.bat
+2. O sistema encontrara uma porta livre e abrira o navegador automaticamente.
 
-  - index.html     -> bump do cache-buster do app.js para ?v=1.6.0,
-                      inclusao das CDNs (SheetJS + jsPDF + autoTable) e
-                      novos botoes "Exportar PDF / Excel / CSV" no ERP.
-  - app.js         -> saveState() agora avisa caso o storage falhe
-                      (modo anonimo, cota cheia), normaliza imoveis ao
-                      salvar (converte valor para numero), e ganhou as
-                      funcoes exportFinancialErpPdf / Excel / Csv.
-  - styles.css     -> estilo dos novos botoes de exportacao.
-  - sw.js          -> nova versao 1.6.0 com estrategia "network-first"
-                      para HTML e JS. Isso resolve o cenario mais comum
-                      de "dados sumiram apos recarregar": uma versao
-                      antiga do app.js ficava presa em cache e ignorava
-                      novas correcoes. Da proxima vez que voce publicar
-                      uma correcao, basta abrir o site - sem precisar
-                      desinstalar/reinstalar a PWA.
+Para criar atalho na Area de Trabalho:
+1. Clique duas vezes em instalar-atalho-area-trabalho.bat
+2. Use o atalho "App Locacao" criado na Area de Trabalho.
 
-Como aplicar
-------------
-1) Substitua os 4 arquivos acima no seu repositorio.
-2) Faca o deploy (Netlify / Vercel / GitHub Pages - .nojekyll ja inclusos).
-3) Abra o site uma vez no navegador - o Service Worker antigo se atualiza
-   sozinho (tem `skipWaiting`).
-4) Caso ainda veja a versao antiga em um dispositivo, force um Hard Reload
-   (Ctrl+F5 no desktop; no iPhone PWA: feche o app e abra novamente).
+O app tambem abre pelo index.html, mas o modo servidor local ativa melhor os recursos PWA/offline.
 
-Sobre os dados que somem
-------------------------
-- O app guarda tudo em localStorage do navegador.
-- Se voce limpa o cache do site / desinstala a PWA / usa janela anonima,
-  os dados sao apagados pelo proprio navegador - nao tem como evitar
-  isso enquanto o backend nao for centralizado.
-- Para garantir persistencia real entre dispositivos, use o painel
-  "Acesso e nuvem" para configurar um endpoint HTTPS de sincronizacao
-  (botao "Enviar para nuvem" / "Baixar da nuvem").
+Principais modulos:
+- Painel executivo
+- Imoveis
+- Clientes
+- Corretores
+- Agenda/calendario
+- Pipeline
+- Contratos
+- Financeiro
+- Manutencao
+- Vistorias
+- Tarefas
+- Documentos
+- Relatorios
+- Gestao de backup/importacao
 
-Sobre as exportacoes do ERP
----------------------------
-- PDF: layout em A4 com cabecalho, resumo executivo, contas a receber,
-  fluxo de caixa, despesas por categoria e rentabilidade por imovel.
-- Excel (.xlsx): um arquivo com 5 abas (Resumo, Contas a receber,
-  Fluxo de caixa, Despesas por categoria, Rentabilidade por imovel).
-- CSV: arquivo unico com todas as tabelas separadas por secoes.
-- As bibliotecas (SheetJS e jsPDF) sao carregadas via CDN - exige
-  internet apenas no momento de gerar o arquivo.
+Os dados ficam salvos no navegador deste dispositivo. Use Gestao > Baixar backup JSON antes de grandes alteracoes.

@@ -1,29 +1,31 @@
-﻿{
-  "name": "Imobiliaria Rio dos Passos Ltda",
-  "short_name": "Rio Passos",
-  "description": "Gestao de imoveis, clientes, contratos, despesas, sincronizacao e relatorios.",
+{
+  "name": "App Locacao",
+  "short_name": "Locacao",
+  "description": "Gestao completa de locacao: clientes, corretores, agenda, contratos, financeiro, manutencao e relatorios.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
-  "background_color": "#f5f7f8",
-  "theme_color": "#5c171b",
+  "background_color": "#f7f8fb",
+  "theme_color": "#0f766e",
   "orientation": "any",
   "categories": ["business", "productivity", "finance"],
+  "shortcuts": [
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "url": "./?view=calendar",
+      "description": "Abrir reservas e visitas"
+    },
+    {
+      "name": "Relatorios",
+      "short_name": "Relatorios",
+      "url": "./?view=reports",
+      "description": "Abrir indicadores executivos"
+    }
+  ],
   "icons": [
-    {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
     {
       "src": "./icon.svg",
       "sizes": "any",

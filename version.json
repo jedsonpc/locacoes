@@ -1,1 +1,5 @@
-{"version":"local-1.7.8","commit":"local","deployedAt":"2026-06-08T00:00:00-03:00"}
+{
+  "version": "local-2.0.0",
+  "commit": "local",
+  "deployedAt": "2026-07-02T22:30:00-03:00"
+}
