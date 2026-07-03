@@ -437,7 +437,7 @@ function settingsView() {
       <div class="toolbar"><div><p class="eyebrow">Supabase</p><h2>Sincronizacao em nuvem</h2></div><span class="status ${syncUser ? "ok" : "warn"}">${syncUser ? "conectado" : "desconectado"}</span></div>
       <div class="form-grid compact-form">
         <div class="field full"><label for="supabase-url">URL do projeto</label><input id="supabase-url" type="url" value="${syncSettings.url || ""}" placeholder="https://xxxx.supabase.co" /></div>
-        <div class="field full"><label for="supabase-key">Anon public key</label><input id="supabase-key" type="password" value="${syncSettings.anonKey || ""}" placeholder="eyJ..." /></div>
+        <div class="field full"><label for="supabase-key">Publishable ou anon public key</label><input id="supabase-key" type="password" value="${syncSettings.anonKey || ""}" placeholder="sb_publishable_... ou eyJ..." /></div>
         <div class="field"><label for="supabase-email">E-mail</label><input id="supabase-email" type="email" value="${syncSettings.email || ""}" placeholder="voce@email.com" /></div>
         <div class="field"><label for="supabase-password">Senha</label><input id="supabase-password" type="password" placeholder="Senha do usuario no Supabase" /></div>
       </div>
@@ -452,7 +452,7 @@ function settingsView() {
     </section>
     <section class="panel">
       <div class="toolbar"><div><p class="eyebrow">Banco</p><h2>Como configurar</h2></div></div>
-      <p class="muted block-help">No Supabase, rode o arquivo <strong>supabase-schema.sql</strong> no SQL Editor. Depois copie a URL do projeto e a anon public key para esta tela. Crie um usuario em Authentication para sincronizar com seguranca por RLS.</p>
+      <p class="muted block-help">No Supabase, rode o arquivo <strong>supabase-schema.sql</strong> no SQL Editor. A URL do projeto e a publishable key ja ficam preenchidas para o projeto gestao-locacoes. Crie usuarios em Authentication para sincronizar com seguranca por RLS.</p>
     </section>
   </div>`;
 }

@@ -95,7 +95,7 @@
       data: appState,
       updated_at: new Date().toISOString()
     };
-    const { error } = await sb.from(table).upsert(payload, { onConflict: "id" });
+    const { error } = await sb.from(table).upsert(payload, { onConflict: "user_id,id" });
     if (error) throw error;
     emit(`Sincronizado como ${user.email}`);
   }

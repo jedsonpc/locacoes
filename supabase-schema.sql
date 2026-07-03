@@ -8,6 +8,24 @@ create table if not exists public.locacoes_state (
   updated_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'locacoes_state'
+      and constraint_name = 'locacoes_state_pkey'
+      and constraint_type = 'PRIMARY KEY'
+  ) then
+    alter table public.locacoes_state drop constraint locacoes_state_pkey;
+  end if;
+end;
+$$;
+
+alter table public.locacoes_state
+add constraint locacoes_state_pkey primary key (user_id, id);
+
 alter table public.locacoes_state enable row level security;
 
 drop policy if exists "Usuarios leem seus dados de locacoes" on public.locacoes_state;

@@ -1,4 +1,4 @@
-const appVersion = "local-2.1.0";
+const appVersion = "local-2.1.1";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersion}`;
 const staticFiles = [
