@@ -1,9 +1,10 @@
-const appVersion = "local-2.1.3";
+﻿const appVersion = "local-2.1.10-temporada";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersion}`;
 const staticFiles = [
   "./",
   "./index.html",
+  "./login.html",
   "./styles.css",
   "./app.js",
   "./supabase-config.js",
@@ -11,7 +12,10 @@ const staticFiles = [
   "./update-checker.js",
   "./manifest.webmanifest",
   "./version.json",
-  "./icon.svg"
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./cupe-beach-living.jpg"
 ];
 
 const offlineHtml = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Locacoes offline</title><style>body{margin:0;font-family:Arial,sans-serif;background:#f7f8fb;color:#111827;display:grid;min-height:100vh;place-items:center;padding:24px}main{max-width:520px;background:#fff;border:1px solid #d8dee9;border-radius:8px;box-shadow:0 18px 45px rgba(17,24,39,.08);padding:28px}h1{color:#0f766e;font-size:24px;margin:0 0 10px}p{line-height:1.5}button{background:#0f766e;border:0;border-radius:8px;color:#fff;cursor:pointer;font-weight:700;padding:10px 14px}</style></head><body><main><h1>Voce esta offline</h1><p>O app continua disponivel neste dispositivo. As informacoes salvas localmente aparecem assim que a tela carregar.</p><button onclick="location.reload()">Tentar novamente</button></main></body></html>`;
@@ -40,3 +44,8 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
+
+
+
+

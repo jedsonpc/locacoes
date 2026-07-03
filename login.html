@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f766e" />
+    <title>Login | Locacoes</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          linear-gradient(90deg, rgba(15, 23, 42, .82), rgba(15, 118, 110, .34)),
+          url("cupe-beach-living.jpg") center / cover no-repeat;
+        color: #0f172a;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .login-shell {
+        width: min(420px, 100%);
+        background: rgba(255, 255, 255, .94);
+        border: 1px solid rgba(255, 255, 255, .72);
+        border-radius: 8px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .26);
+        padding: 28px;
+        backdrop-filter: blur(12px);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+      .brand img {
+        width: 54px;
+        height: 54px;
+        border-radius: 8px;
+        box-shadow: 0 10px 24px rgba(15, 118, 110, .22);
+      }
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.1;
+        letter-spacing: 0;
+      }
+      .brand span, .hint {
+        color: #64748b;
+        font-size: 13px;
+      }
+      label {
+        display: block;
+        margin: 14px 0 6px;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      input {
+        width: 100%;
+        height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0 12px;
+        color: #0f172a;
+        font: inherit;
+        outline: none;
+      }
+      input:focus {
+        border-color: #0f766e;
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, .14);
+      }
+      .password-row {
+        position: relative;
+      }
+      .password-row input {
+        padding-right: 92px;
+      }
+      .password-toggle {
+        position: absolute;
+        right: 6px;
+        top: 6px;
+        width: auto;
+        height: 32px;
+        margin: 0;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        background: #f8fafc;
+        color: #0f766e;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      button {
+        width: 100%;
+        height: 46px;
+        margin-top: 18px;
+        border: 0;
+        border-radius: 8px;
+        background: #0f766e;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 800;
+      }
+      button:disabled {
+        cursor: wait;
+        opacity: .65;
+      }
+      .status {
+        display: none;
+        margin-top: 14px;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fef2f2;
+        color: #991b1b;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .status.info {
+        background: #ecfeff;
+        color: #155e75;
+      }
+      .hint {
+        margin: 14px 0 0;
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+  <body>
+    <form class="login-shell" id="loginForm">
+      <div class="brand">
+        <img src="icon-192.png" alt="" />
+        <div>
+          <h1>Locacoes</h1>
+          <span>Acesso seguro Supabase</span>
+        </div>
+      </div>
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required />
+      <label for="password">Senha</label>
+      <div class="password-row">
+        <input id="password" type="password" autocomplete="current-password" required />
+        <button id="togglePassword" class="password-toggle" type="button">Exibir</button>
+      </div>
+      <button id="submitBtn" type="submit">Entrar no app</button>
+      <div class="status" id="status"></div>
+      <p class="hint">Use somente usuarios cadastrados e autorizados no projeto Supabase gestao-locacoes.</p>
+    </form>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js?v=2.1.10-temporada"></script>
+    <script src="supabase-sync.js?v=2.1.10-temporada"></script>
+    <script>
+      const offlineUserKey = "app-locacao-last-online-user-v1";
+
+      function setStatus(text, kind = "error") {
+        const el = document.getElementById("status");
+        el.textContent = text;
+        el.className = kind === "info" ? "status info" : "status";
+        el.style.display = "block";
+      }
+
+      function cacheUser(user) {
+        if (!user?.id && !user?.email) return;
+        localStorage.setItem(offlineUserKey, JSON.stringify({
+          id: user.id || user.email,
+          email: user.email || "",
+          cachedAt: new Date().toISOString()
+        }));
+      }
+
+      function getCachedUser() {
+        try {
+          return JSON.parse(localStorage.getItem(offlineUserKey));
+        } catch {
+          return null;
+        }
+      }
+
+      async function boot() {
+        const button = document.getElementById("submitBtn");
+        button.disabled = true;
+        if (!window.LocacoesSupabaseSync) {
+          const cached = getCachedUser();
+          if (!navigator.onLine && cached) {
+            setStatus("Modo offline disponivel para o ultimo usuario validado neste computador.", "info");
+            button.disabled = false;
+            return;
+          }
+          setStatus("Nao foi possivel carregar o Supabase. Verifique a internet e recarregue.");
+          return;
+        }
+        window.LocacoesSupabaseSync.configure();
+        try {
+          await window.LocacoesSupabaseSync.restoreSession();
+          const user = window.LocacoesSupabaseSync.getUser();
+          if (user) {
+            cacheUser(user);
+            location.replace("index.html");
+            return;
+          }
+        } catch {
+          setStatus("Informe e-mail e senha para iniciar uma sessao segura.", "info");
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      document.getElementById("loginForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = document.getElementById("submitBtn");
+        button.disabled = true;
+        button.textContent = "Validando...";
+        try {
+          if (!window.LocacoesSupabaseSync) throw new Error("Modulo Supabase nao carregado.");
+          const user = await window.LocacoesSupabaseSync.signIn(
+            document.getElementById("email").value.trim(),
+            document.getElementById("password").value
+          );
+          cacheUser(user);
+          location.replace("index.html");
+        } catch (error) {
+          setStatus("Falha no login: " + (error.message || error));
+          button.disabled = false;
+          button.textContent = "Entrar no app";
+        }
+      });
+
+      document.getElementById("togglePassword").addEventListener("click", () => {
+        const password = document.getElementById("password");
+        const visible = password.type === "text";
+        password.type = visible ? "password" : "text";
+        document.getElementById("togglePassword").textContent = visible ? "Exibir" : "Ocultar";
+      });
+
+      boot();
+    </script>
+  </body>
+</html>

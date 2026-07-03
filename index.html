@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
@@ -8,9 +8,10 @@
     <title>Locacoes | Gestao de Excelencia</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=2.1.3" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="stylesheet" href="styles.css?v=2.1.10-temporada" />
   </head>
-  <body>
+  <body class="auth-pending">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">AL</div>
@@ -33,11 +34,19 @@
           <h1 id="pageTitle">Painel</h1>
         </div>
         <div class="topbar-actions">
+          <span class="sync-status" id="currentUserBadge">Usuario nao identificado</span>
+          <span class="sync-status" id="topSyncStatus">Salvo neste dispositivo</span>
+          <span class="sync-status app-version-status">
+            <strong id="topVersionLabel">v2.1.6 temporada</strong>
+            <small id="topAccessLabel">Acesso local</small>
+          </span>
           <label class="search">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">Buscar</span>
             <input id="globalSearch" type="search" placeholder="Buscar clientes, imoveis, reservas..." />
           </label>
+          <button id="qrAccessBtn" class="ghost-button app-install-action" type="button">QR acesso</button>
           <button id="quickAddBtn" class="primary-button" type="button">+ Novo registro</button>
+          <button id="logoutBtn" class="ghost-button logout-button" type="button">Sair</button>
         </div>
       </header>
 
@@ -56,7 +65,7 @@
             <p class="eyebrow">Cadastro rapido</p>
             <h2 id="dialogTitle">Novo registro</h2>
           </div>
-          <button class="icon-button" value="cancel" aria-label="Fechar" type="submit">×</button>
+          <button class="icon-button" value="cancel" aria-label="Fechar" type="submit">x</button>
         </div>
         <div id="formFields" class="form-grid"></div>
         <div class="dialog-actions">
@@ -66,12 +75,37 @@
       </form>
     </dialog>
 
+    <dialog id="qrDialog" class="dialog qr-dialog">
+      <form method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">Acesso rapido</p>
+            <h2>QR Code do app</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Fechar" type="submit">x</button>
+        </div>
+        <div class="qr-panel">
+          <img id="qrImage" alt="QR Code de acesso ao app" />
+          <div>
+            <strong>Link de acesso</strong>
+            <p id="qrAccessLink" class="qr-link"></p>
+            <div class="dialog-actions qr-actions">
+              <button id="copyAccessLinkBtn" class="ghost-button" value="none" type="button">Copiar link</button>
+              <a id="openAccessLinkBtn" class="primary-button link-button" target="_blank" rel="noopener">Abrir</a>
+            </div>
+            <p class="muted block-help">Use este QR para abrir o app no celular pelo endereco web. Depois de abrir, entre com o mesmo usuario do Supabase.</p>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
     <input id="importFile" class="hidden" type="file" accept="application/json" />
     <div id="toast" class="toast hidden" role="status"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <script src="supabase-config.js?v=2.1.3" defer></script>
-    <script src="supabase-sync.js?v=2.1.3" defer></script>
-    <script src="update-checker.js?v=2.1.3" defer></script>
-    <script src="app.js?v=2.1.3" defer></script>
+    <script src="supabase-config.js?v=2.1.10-temporada" defer></script>
+    <script src="supabase-sync.js?v=2.1.10-temporada" defer></script>
+    <script src="update-checker.js?v=2.1.10-temporada" defer></script>
+    <script src="app.js?v=2.1.10-temporada" defer></script>
   </body>
 </html>
+

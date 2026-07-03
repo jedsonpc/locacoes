@@ -7,6 +7,11 @@ Para abrir com melhor funcionamento:
 Para criar atalho na Area de Trabalho:
 1. Clique duas vezes em instalar-atalho-area-trabalho.bat
 2. Use o atalho "Locacoes" criado na Area de Trabalho.
+3. O atalho instala o app em %LOCALAPPDATA%\LocacoesApp, abre em modo aplicativo e valida o acesso pelo Supabase.
+
+Acesso online:
+- App: https://jedsonpc.github.io/locacoes/
+- Supabase usuarios: https://supabase.com/dashboard/project/afwynugokyejfbrtyobk/auth/users
 
 O app tambem abre pelo index.html, mas o modo servidor local ativa melhor os recursos PWA/offline.
 
@@ -28,9 +33,8 @@ Principais modulos:
 - Sincronizacao Supabase com login e RLS
 
 Supabase:
-1. Crie um projeto no Supabase.
-2. Rode o arquivo supabase-schema.sql no SQL Editor.
-3. Em Authentication, crie um usuario com e-mail e senha.
-4. No app, abra Gestao e informe Project URL, anon public key, e-mail e senha.
+1. O projeto gestao-locacoes ja esta configurado para este app.
+2. O login inicial usa usuarios cadastrados em Authentication > Users.
+3. Apos entrar, a sincronizacao em nuvem fica ativa para o usuario validado.
 
 Os dados ficam salvos no navegador deste dispositivo. Use Gestao > Baixar backup JSON antes de grandes alteracoes.
