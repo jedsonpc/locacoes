@@ -1,4 +1,4 @@
-const appVersion = "local-2.0.0";
+const appVersion = "local-2.1.0";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersion}`;
 const staticFiles = [
@@ -6,6 +6,8 @@ const staticFiles = [
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./supabase-config.js",
+  "./supabase-sync.js",
   "./update-checker.js",
   "./manifest.webmanifest",
   "./version.json",

@@ -1,5 +1,6 @@
 const STORE_KEY = "app-locacao-state-v2";
 const BACKUP_KEY = "app-locacao-backups-v1";
+const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const today = new Date();
 const oneDay = 86400000;
 
@@ -161,6 +162,7 @@ function saveState(reason = "manual") {
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
   document.querySelector("#storageStatus").textContent = "Salvo agora";
   setTimeout(() => document.querySelector("#storageStatus").textContent = "Salvo neste dispositivo", 1800);
+  window.LocacoesSupabaseSync?.queueSave?.(state);
 }
 
 function money(value) {
@@ -413,6 +415,9 @@ function ownerStatements() {
 
 function settingsView() {
   const counts = Object.keys(schemas).map((key) => `<div class="list-row"><strong>${collectionLabels[key][1]}</strong><span class="status info">${state[key].length}</span></div>`).join("");
+  const syncSettings = loadSupabaseSettings();
+  const syncUser = window.LocacoesSupabaseSync?.getUser?.();
+  const syncStatus = window.LocacoesSupabaseSync?.getStatus?.() || "Aguardando configuracao.";
   return `<div class="grid two-col">
     <section class="panel">
       <div class="toolbar"><div><p class="eyebrow">Governanca</p><h2>Backup e dados</h2></div></div>
@@ -428,7 +433,61 @@ function settingsView() {
       <div class="toolbar"><div><p class="eyebrow">Saude da base</p><h2>Registros</h2></div></div>
       <div class="list">${counts}</div>
     </section>
+    <section class="panel">
+      <div class="toolbar"><div><p class="eyebrow">Supabase</p><h2>Sincronizacao em nuvem</h2></div><span class="status ${syncUser ? "ok" : "warn"}">${syncUser ? "conectado" : "desconectado"}</span></div>
+      <div class="form-grid compact-form">
+        <div class="field full"><label for="supabase-url">URL do projeto</label><input id="supabase-url" type="url" value="${syncSettings.url || ""}" placeholder="https://xxxx.supabase.co" /></div>
+        <div class="field full"><label for="supabase-key">Anon public key</label><input id="supabase-key" type="password" value="${syncSettings.anonKey || ""}" placeholder="eyJ..." /></div>
+        <div class="field"><label for="supabase-email">E-mail</label><input id="supabase-email" type="email" value="${syncSettings.email || ""}" placeholder="voce@email.com" /></div>
+        <div class="field"><label for="supabase-password">Senha</label><input id="supabase-password" type="password" placeholder="Senha do usuario no Supabase" /></div>
+      </div>
+      <div class="action-grid cloud-actions">
+        <button class="primary-button" data-sync="save-config" type="button">Salvar configuracao</button>
+        <button class="ghost-button" data-sync="login" type="button">Entrar</button>
+        <button class="ghost-button" data-sync="pull" type="button">Baixar nuvem</button>
+        <button class="ghost-button" data-sync="push" type="button">Enviar agora</button>
+        <button class="ghost-button" data-sync="logout" type="button">Sair</button>
+      </div>
+      <p class="muted block-help" id="cloud-sync-status">${syncStatus}</p>
+    </section>
+    <section class="panel">
+      <div class="toolbar"><div><p class="eyebrow">Banco</p><h2>Como configurar</h2></div></div>
+      <p class="muted block-help">No Supabase, rode o arquivo <strong>supabase-schema.sql</strong> no SQL Editor. Depois copie a URL do projeto e a anon public key para esta tela. Crie um usuario em Authentication para sincronizar com seguranca por RLS.</p>
+    </section>
   </div>`;
+}
+
+function loadSupabaseSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SUPABASE_SETTINGS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSupabaseSettingsFromForm() {
+  const settings = {
+    url: document.querySelector("#supabase-url")?.value.trim() || "",
+    anonKey: document.querySelector("#supabase-key")?.value.trim() || "",
+    email: document.querySelector("#supabase-email")?.value.trim() || ""
+  };
+  localStorage.setItem(SUPABASE_SETTINGS_KEY, JSON.stringify(settings));
+  window.LocacoesSupabaseSync?.configure?.(settings);
+  toast("Configuracao Supabase salva.");
+  render();
+}
+
+function getSupabaseLogin() {
+  return {
+    email: document.querySelector("#supabase-email")?.value.trim() || loadSupabaseSettings().email || "",
+    password: document.querySelector("#supabase-password")?.value || ""
+  };
+}
+
+function setCloudStatus(text) {
+  const el = document.querySelector("#cloud-sync-status");
+  if (el) el.textContent = text;
+  document.querySelector("#storageStatus").textContent = text;
 }
 
 function empty(text) {
@@ -549,6 +608,8 @@ document.addEventListener("click", (event) => {
       toast("Dados exemplo restaurados.");
     }
   }
+  const syncBtn = event.target.closest("[data-sync]");
+  if (syncBtn) handleSyncAction(syncBtn.dataset.sync);
 });
 
 document.querySelector("#recordForm").addEventListener("submit", submitForm);
@@ -564,3 +625,72 @@ document.querySelector("#importFile").addEventListener("change", (event) => {
 });
 
 render();
+
+async function handleSyncAction(action) {
+  try {
+    if (action === "save-config") {
+      saveSupabaseSettingsFromForm();
+      return;
+    }
+    if (!window.LocacoesSupabaseSync) {
+      toast("Modulo Supabase nao carregado.");
+      return;
+    }
+    if (action === "login") {
+      saveSupabaseSettingsFromForm();
+      const login = getSupabaseLogin();
+      await window.LocacoesSupabaseSync.signIn(login.email, login.password);
+      const remote = await window.LocacoesSupabaseSync.loadRemote();
+      if (remote?.data) {
+        state = normalize(remote.data);
+        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      } else {
+        await window.LocacoesSupabaseSync.saveNow(state);
+      }
+      render();
+      toast("Supabase conectado.");
+    }
+    if (action === "pull") {
+      const remote = await window.LocacoesSupabaseSync.loadRemote();
+      if (!remote?.data) {
+        toast("Nenhum dado na nuvem.");
+        return;
+      }
+      state = normalize(remote.data);
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      render();
+      toast("Dados baixados da nuvem.");
+    }
+    if (action === "push") {
+      await window.LocacoesSupabaseSync.saveNow(state);
+      toast("Dados enviados ao Supabase.");
+    }
+    if (action === "logout") {
+      await window.LocacoesSupabaseSync.signOut();
+      render();
+      toast("Sessao Supabase encerrada.");
+    }
+  } catch (error) {
+    setCloudStatus(error.message || "Falha na sincronizacao.");
+    toast("Falha no Supabase.");
+  }
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  if (!window.LocacoesSupabaseSync) return;
+  window.LocacoesSupabaseSync.configure(loadSupabaseSettings());
+  window.LocacoesSupabaseSync.onStatus(setCloudStatus);
+  try {
+    await window.LocacoesSupabaseSync.restoreSession();
+    if (window.LocacoesSupabaseSync.getUser()) {
+      const remote = await window.LocacoesSupabaseSync.loadRemote();
+      if (remote?.data && (!state.meta?.updatedAt || remote.updatedAt > state.meta.updatedAt)) {
+        state = normalize(remote.data);
+        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+        render();
+      }
+    }
+  } catch {
+    setCloudStatus("Supabase aguardando login.");
+  }
+});

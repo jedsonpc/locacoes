@@ -25,5 +25,12 @@ Principais modulos:
 - Documentos
 - Relatorios
 - Gestao de backup/importacao
+- Sincronizacao Supabase com login e RLS
+
+Supabase:
+1. Crie um projeto no Supabase.
+2. Rode o arquivo supabase-schema.sql no SQL Editor.
+3. Em Authentication, crie um usuario com e-mail e senha.
+4. No app, abra Gestao e informe Project URL, anon public key, e-mail e senha.
 
 Os dados ficam salvos no navegador deste dispositivo. Use Gestao > Baixar backup JSON antes de grandes alteracoes.
