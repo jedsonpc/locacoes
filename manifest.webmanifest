@@ -1,6 +1,6 @@
 {
-  "name": "App Locacao",
-  "short_name": "Locacao",
+  "name": "Locacoes",
+  "short_name": "Locacoes",
   "description": "Gestao completa de locacao: clientes, corretores, agenda, contratos, financeiro, manutencao e relatorios.",
   "id": "./",
   "start_url": "./",

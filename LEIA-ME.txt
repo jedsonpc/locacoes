@@ -1,4 +1,4 @@
-APP LOCACAO - GESTAO DE EXCELENCIA
+LOCACOES - GESTAO DE EXCELENCIA
 
 Para abrir com melhor funcionamento:
 1. Clique duas vezes em abrir-app-locacao.bat ou abrir-app-locação.bat
@@ -6,7 +6,7 @@ Para abrir com melhor funcionamento:
 
 Para criar atalho na Area de Trabalho:
 1. Clique duas vezes em instalar-atalho-area-trabalho.bat
-2. Use o atalho "App Locacao" criado na Area de Trabalho.
+2. Use o atalho "Locacoes" criado na Area de Trabalho.
 
 O app tambem abre pelo index.html, mas o modo servidor local ativa melhor os recursos PWA/offline.
 

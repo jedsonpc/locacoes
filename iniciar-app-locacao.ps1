@@ -39,7 +39,7 @@ if (-not $Port) {
 
 $Url = "http://127.0.0.1:$Port/index.html"
 
-Write-Host "App Locacao"
+Write-Host "Locacoes"
 Write-Host "Pasta: $AppDir"
 Write-Host "Endereco: $Url"
 Write-Host ""
