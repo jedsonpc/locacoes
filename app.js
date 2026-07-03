@@ -2,8 +2,8 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.10 temporada";
-const WEB_ACCESS_URL = "https://jedsonpc.github.io/locacoes/";
+const APP_VERSION_LABEL = "v2.1.11 temporada";
+const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
 
 const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -707,7 +707,7 @@ function updateTopbarAccess() {
 
 function getAccessUrl() {
   const url = new URL(WEB_ACCESS_URL);
-  url.searchParams.set("v", "2.1.10-temporada");
+  url.searchParams.set("v", "2.1.11-temporada");
   return url.toString();
 }
 
@@ -739,7 +739,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.10-temporada");
+  location.replace("login.html?v=2.1.11-temporada");
 }
 
 async function handleSyncAction(action) {
@@ -885,4 +885,5 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
