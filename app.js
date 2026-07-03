@@ -458,17 +458,18 @@ function settingsView() {
 }
 
 function loadSupabaseSettings() {
+  const defaults = window.LOCACOES_SUPABASE_DEFAULTS || {};
   try {
-    return JSON.parse(localStorage.getItem(SUPABASE_SETTINGS_KEY)) || {};
+    return { ...defaults, ...(JSON.parse(localStorage.getItem(SUPABASE_SETTINGS_KEY)) || {}) };
   } catch {
-    return {};
+    return { ...defaults };
   }
 }
 
 function saveSupabaseSettingsFromForm() {
   const settings = {
-    url: document.querySelector("#supabase-url")?.value.trim() || "",
-    anonKey: document.querySelector("#supabase-key")?.value.trim() || "",
+    url: document.querySelector("#supabase-url")?.value.trim() || window.LOCACOES_SUPABASE_DEFAULTS?.url || "",
+    anonKey: document.querySelector("#supabase-key")?.value.trim() || window.LOCACOES_SUPABASE_DEFAULTS?.anonKey || "",
     email: document.querySelector("#supabase-email")?.value.trim() || ""
   };
   localStorage.setItem(SUPABASE_SETTINGS_KEY, JSON.stringify(settings));
