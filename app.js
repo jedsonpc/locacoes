@@ -638,8 +638,8 @@ async function handleSyncAction(action) {
       return;
     }
     if (action === "login") {
-      saveSupabaseSettingsFromForm();
       const login = getSupabaseLogin();
+      saveSupabaseSettingsFromForm();
       await window.LocacoesSupabaseSync.signIn(login.email, login.password);
       const remote = await window.LocacoesSupabaseSync.loadRemote();
       if (remote?.data) {
