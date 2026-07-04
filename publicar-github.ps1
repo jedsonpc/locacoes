@@ -124,3 +124,4 @@ if (-not $changes) {
 Write-Host "GitHub atualizado com sucesso. O Vercel/GitHub Pages deve publicar a versao $versionSlug automaticamente."
 Write-Host "Depois da publicacao, o QR passara a abrir a versao atualizada."
 
+
