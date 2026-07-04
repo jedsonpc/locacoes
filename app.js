@@ -770,11 +770,11 @@ function updateTopbarAccess() {
 }
 
 function getAccessUrl() {
-  const base = location.protocol.startsWith("http") && location.hostname !== "127.0.0.1" && location.hostname !== "localhost"
-    ? location.href
-    : WEB_ACCESS_URL;
+  const isLocalHost = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+  const base = location.protocol.startsWith("http") && !isLocalHost ? location.href : WEB_ACCESS_URL;
   const url = new URL(base, location.href);
-  url.pathname = url.pathname.endsWith("/") ? `${url.pathname}login.html` : url.pathname.replace(/[^/]*$/, "login.html");
+  const loginPath = isLocalHost ? "login.html" : "login";
+  url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
   url.searchParams.set("v", "2.1.15-auto-20260703-2347");
   return url.toString();
@@ -954,6 +954,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
