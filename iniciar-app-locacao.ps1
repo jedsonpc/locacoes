@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Python = "C:\Users\Edson\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
@@ -39,7 +39,7 @@ if (-not $Port) {
 
 $Url = "http://127.0.0.1:$Port/index.html"
 
-Write-Host "Locacoes"
+Write-Host "Cupe Beach Living"
 Write-Host "Pasta: $AppDir"
 Write-Host "Endereco: $Url"
 Write-Host ""
@@ -51,3 +51,5 @@ $openCommand = "Start-Sleep -Milliseconds 900; Start-Process '$Url'"
 Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-Command", $openCommand) -WindowStyle Hidden | Out-Null
 
 & $Python -m http.server $Port -d $AppDir
+
+

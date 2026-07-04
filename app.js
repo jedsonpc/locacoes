@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.11 temporada";
+const APP_VERSION_LABEL = "v2.1.15-auto-20260703-2347";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
 
@@ -83,8 +83,8 @@ function getById(collection, id) {
 }
 
 function createSeed() {
-  const apt1 = { id: uid(), name: "Apartamento Vista Mar 301", address: "Orla central", type: "Apartamento", status: "ativo", rooms: 2, maxGuests: 6, baseDaily: 420, cleaningFee: 180, notes: "Ideal para familias; aceita pet pequeno mediante aprovacao." };
-  const apt2 = { id: uid(), name: "Studio Executivo 1207", address: "Centro", type: "Studio", status: "ativo", rooms: 1, maxGuests: 3, baseDaily: 260, cleaningFee: 120, notes: "Alta procura para estadias curtas." };
+  const apt1 = { id: uid(), name: "Apartamento Vista Mar 301", address: "Orla central", type: "Apartamento", status: "ativo", ownerName: "Proprietario exemplo", ownerDocument: "", ownerPhone: "", ownerEmail: "", ownerShare: 100, rooms: 2, maxGuests: 6, baseDaily: 420, cleaningFee: 180, notes: "Ideal para familias; aceita pet pequeno mediante aprovacao." };
+  const apt2 = { id: uid(), name: "Studio Executivo 1207", address: "Centro", type: "Studio", status: "ativo", ownerName: "Proprietario exemplo", ownerDocument: "", ownerPhone: "", ownerEmail: "", ownerShare: 100, rooms: 1, maxGuests: 3, baseDaily: 260, cleaningFee: 120, notes: "Alta procura para estadias curtas." };
   const client = { id: uid(), name: "Marina Azevedo", document: "000.000.000-00", phone: "(85) 99999-0000", email: "marina@email.com", origin: "Instagram", notes: "Preferencia por check-in antecipado." };
   const broker = { id: uid(), name: "Carlos Lima", phone: "(85) 98888-0000", email: "carlos@corretor.com", commissionDefault: 12, status: "ativo", notes: "" };
   const checkIn = todayIso();
@@ -113,8 +113,58 @@ function normalize(next) {
   for (const key of Object.keys(base)) {
     if (Array.isArray(base[key])) incoming[key] = Array.isArray(incoming[key]) ? incoming[key] : base[key];
   }
+  incoming.apartments = incoming.apartments.map(normalizeApartment);
   incoming.settings = { ...base.settings, ...(incoming.settings || {}) };
   return incoming;
+}
+
+function normalizeApartment(apt = {}) {
+  const ownerName = apt.ownerName || apt.owner || apt.proprietario || "";
+  return {
+    ...apt,
+    ownerName,
+    ownerDocument: apt.ownerDocument || apt.ownerCpfCnpj || apt.ownerCpf || apt.ownerCnpj || "",
+    ownerPhone: apt.ownerPhone || apt.ownerContact || "",
+    ownerEmail: apt.ownerEmail || "",
+    ownerShare: apt.ownerShare === undefined || apt.ownerShare === "" ? 100 : toNumber(apt.ownerShare)
+  };
+}
+
+function apartmentOwnerName(apt) {
+  return apt?.ownerName || "Proprietario nao informado";
+}
+
+function ownerKey(apt) {
+  return apartmentOwnerName(apt).trim().toLowerCase();
+}
+
+function ownerSummaryRows(metrics) {
+  const rows = new Map();
+  const ensure = (apt) => {
+    const key = ownerKey(apt);
+    if (!rows.has(key)) rows.set(key, { owner: apartmentOwnerName(apt), apartments: new Set(), revenue: 0, commission: 0, expenses: 0, net: 0 });
+    const row = rows.get(key);
+    if (apt?.name) row.apartments.add(apt.name);
+    return row;
+  };
+
+  metrics.contracts.forEach((contract) => {
+    const apt = getById("apartments", contract.apartmentId);
+    const totals = contractTotals(contract);
+    const row = ensure(apt);
+    row.revenue += totals.total;
+    row.commission += totals.commission;
+    row.net += totals.total - totals.commission;
+  });
+
+  metrics.expenses.forEach((expense) => {
+    const apt = getById("apartments", expense.apartmentId);
+    const row = ensure(apt);
+    row.expenses += toNumber(expense.amount);
+    row.net -= toNumber(expense.amount);
+  });
+
+  return [...rows.values()].sort((a, b) => b.net - a.net);
 }
 
 function migrateLongTermState(oldState, base) {
@@ -124,11 +174,16 @@ function migrateLongTermState(oldState, base) {
     address: apt.address || "",
     type: apt.type || "Apartamento",
     status: statusToSeason(apt.status),
+    ownerName: apt.ownerName || apt.owner || apt.proprietario || "",
+    ownerDocument: apt.ownerDocument || apt.ownerCpfCnpj || "",
+    ownerPhone: apt.ownerPhone || apt.ownerContact || "",
+    ownerEmail: apt.ownerEmail || "",
+    ownerShare: apt.ownerShare === undefined || apt.ownerShare === "" ? 100 : toNumber(apt.ownerShare),
     rooms: toNumber(apt.bedrooms || apt.rooms),
     maxGuests: toNumber(apt.maxGuests || Math.max(2, toNumber(apt.bedrooms) * 2)),
     baseDaily: toNumber(apt.baseDaily || apt.price),
     cleaningFee: toNumber(apt.cleaningFee),
-    notes: apt.notes || [apt.code, apt.district, apt.owner].filter(Boolean).join(" | ")
+    notes: apt.notes || [apt.code, apt.district].filter(Boolean).join(" | ")
   })) : base.apartments;
 
   const clients = Array.isArray(oldState.clients) ? oldState.clients.map((client) => ({
@@ -295,7 +350,9 @@ function render() {
 }
 
 function metric(label, value, hint, cls = "info") {
-  return `<article class="panel metric ${cls}"><span>${label}</span><strong>${value}</strong><small>${hint}</small></article>`;
+  const valueText = String(value ?? "");
+  const valueClass = valueText.length > 13 ? " metric-value compact-value" : " metric-value";
+  return `<article class="panel metric ${cls}"><span>${label}</span><strong class="${valueClass}">${value}</strong><small>${hint}</small></article>`;
 }
 
 function dashboard() {
@@ -339,7 +396,7 @@ function alertRow(item) {
 }
 
 function apartmentCard(apt) {
-  return `<article class="card apartment-card"><div class="apartment-cover">${escapeHtml(apt.name)}</div><div class="card-head"><strong>${escapeHtml(apt.type || "Apartamento")}</strong><span class="status ${statusClass(apt.status)}">${escapeHtml(apt.status || "ativo")}</span></div><p class="muted">${escapeHtml(apt.address || "Endereco nao informado")}</p><div class="apartment-meta"><span class="status info">${apt.rooms || 0} quarto(s)</span><span class="status info">ate ${apt.maxGuests || 0}</span><span class="status ok">${money(apt.baseDaily)}</span></div><div class="filters"><button class="ghost-button" data-edit="apartments:${apt.id}" type="button">Editar</button></div></article>`;
+  return `<article class="card apartment-card"><div class="apartment-cover">${escapeHtml(apt.name)}</div><div class="card-head"><strong>${escapeHtml(apt.type || "Apartamento")}</strong><span class="status ${statusClass(apt.status)}">${escapeHtml(apt.status || "ativo")}</span></div><p class="muted">${escapeHtml(apt.address || "Endereco nao informado")}</p><p class="owner-line">Proprietario: <strong>${escapeHtml(apartmentOwnerName(apt))}</strong></p><div class="apartment-meta"><span class="status info">${apt.rooms || 0} quarto(s)</span><span class="status info">ate ${apt.maxGuests || 0}</span><span class="status ok">${money(apt.baseDaily)}</span></div><div class="filters"><button class="ghost-button" data-edit="apartments:${apt.id}" type="button">Editar</button></div></article>`;
 }
 
 function tableView(collection, title, headers, rowFn) {
@@ -361,11 +418,14 @@ function brokers() {
 }
 
 function expenses() {
-  return tableView("expenses", "Despesas", ["Data", "Apartamento", "Categoria", "Valor", "Status", "Acoes"], (expense) => [dateBR(expense.date), escapeHtml(getById("apartments", expense.apartmentId)?.name || "Geral"), escapeHtml(expense.category), money(expense.amount), status(expense.paid), actions("expenses", expense.id)]);
+  return tableView("expenses", "Despesas", ["Data", "Apartamento", "Proprietario", "Categoria", "Valor", "Status", "Acoes"], (expense) => {
+    const apt = getById("apartments", expense.apartmentId);
+    return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(apt ? apartmentOwnerName(apt) : "Despesa geral"), escapeHtml(expense.category), money(expense.amount), status(expense.paid), actions("expenses", expense.id)];
+  });
 }
 
 function contracts() {
-  return tableView("contracts", "Contratos e estadias", ["Periodo", "Cliente", "Apartamento", "Hospedes", "Financeiro", "Status", "Acoes"], contractRow);
+  return tableView("contracts", "Contratos e estadias", ["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], contractRow);
 }
 
 function contractRow(contract) {
@@ -374,6 +434,7 @@ function contractRow(contract) {
     `${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}<br>${totals.stayNights} diaria(s)`,
     escapeHtml(getById("clients", contract.clientId)?.name || "-"),
     `${escapeHtml(getById("apartments", contract.apartmentId)?.name || "-")}${hasConflict(contract) ? `<br><span class="status danger">Conflito</span>` : ""}`,
+    escapeHtml(apartmentOwnerName(getById("apartments", contract.apartmentId))),
     `${contract.guests || 0} adulto(s)<br>${contract.children || 0} crianca(s), pet: ${contract.pets || "nao"}`,
     `${money(totals.total)}<br>Comissao: ${money(totals.commission)}<br>Pendente: ${money(totals.pending)}`,
     `${status(contract.status)}<br>${status(contract.paymentStatus)}`,
@@ -413,10 +474,12 @@ function reportsView() {
     const total = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
     return [escapeHtml(broker.name), contracts.length, money(total)];
   }).filter((row) => row[1]);
+  const owners = ownerSummaryRows(m);
   return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
     <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${Math.round(m.occupancy * 100)}% ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
-    <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes por corretor</h2></div></div>${brokerRows.length ? table(["Corretor", "Contratos", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas do mes</h2></div></div>${m.expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], m.expenses.map((expense) => [dateBR(expense.date), escapeHtml(getById("apartments", expense.apartmentId)?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)])) : empty("Nenhuma despesa no periodo.")}</section></div>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map(contractRow)) : empty("Nenhum contrato no periodo.")}</section>`;
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Proprietarios</p><h2>Resultado por proprietario</h2></div></div>${owners.length ? table(["Proprietario", "Apartamentos", "Receita", "Comissoes", "Despesas", "Resultado"], owners.map((row) => [escapeHtml(row.owner), escapeHtml([...row.apartments].join(", ") || "-"), money(row.revenue), money(row.commission), money(row.expenses), money(row.net)])) : empty("Nenhum resultado por proprietario no periodo.")}</section>
+    <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes por corretor</h2></div></div>${brokerRows.length ? table(["Corretor", "Contratos", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas do mes</h2></div></div>${m.expenses.length ? table(["Data", "Apartamento", "Proprietario", "Categoria", "Valor"], m.expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(apt ? apartmentOwnerName(apt) : "Despesa geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map(contractRow)) : empty("Nenhum contrato no periodo.")}</section>`;
 }
 
 function settingsView() {
@@ -466,7 +529,7 @@ function fieldsFor(collection, record = {}) {
   const brokerOptions = () => [["", "Sem corretor"], ...state.brokers.map((broker) => [broker.id, broker.name])];
   const fields = {
     apartments: [
-      ["name", "Nome do apartamento", "text", null, true], ["address", "Endereco", "text"], ["type", "Tipo", "select", [["Apartamento", "Apartamento"], ["Studio", "Studio"], ["Casa", "Casa"], ["Cobertura", "Cobertura"], ["Flat", "Flat"]]], ["status", "Status", "select", [["ativo", "Ativo"], ["manutencao", "Manutencao"], ["inativo", "Inativo"]]], ["rooms", "Quartos", "number"], ["maxGuests", "Capacidade", "number"], ["baseDaily", "Diaria base", "number"], ["cleaningFee", "Taxa limpeza", "number"], ["notes", "Observacoes", "textarea"]
+      ["name", "Nome do apartamento", "text", null, true], ["address", "Endereco", "text"], ["type", "Tipo", "select", [["Apartamento", "Apartamento"], ["Studio", "Studio"], ["Casa", "Casa"], ["Cobertura", "Cobertura"], ["Flat", "Flat"]]], ["status", "Status", "select", [["ativo", "Ativo"], ["manutencao", "Manutencao"], ["inativo", "Inativo"]]], ["ownerName", "Proprietario", "text", null, true], ["ownerDocument", "CPF/CNPJ do proprietario", "text"], ["ownerPhone", "Telefone do proprietario", "text"], ["ownerEmail", "E-mail do proprietario", "email"], ["ownerShare", "Participacao do proprietario (%)", "number", null, false, 100], ["rooms", "Quartos", "number"], ["maxGuests", "Capacidade", "number"], ["baseDaily", "Diaria base", "number"], ["cleaningFee", "Taxa limpeza", "number"], ["notes", "Observacoes", "textarea"]
     ],
     clients: [
       ["name", "Nome", "text", null, true], ["document", "CPF/documento", "text"], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["origin", "Origem", "select", [["Indicado", "Indicado"], ["Airbnb", "Airbnb"], ["Booking", "Booking"], ["Instagram", "Instagram"], ["Direto", "Direto"], ["Outro", "Outro"]]], ["notes", "Observacoes", "textarea"]
@@ -526,8 +589,9 @@ function submitForm(event) {
     if (error) return toast(error);
   }
 
-  if (id) state[collection] = state[collection].map((item) => item.id === id ? { ...item, ...record } : item);
-  else state[collection].push({ id: uid(), ...record });
+  const normalizedRecord = collection === "apartments" ? normalizeApartment(record) : record;
+  if (id) state[collection] = state[collection].map((item) => item.id === id ? { ...item, ...normalizedRecord } : item);
+  else state[collection].push({ id: uid(), ...normalizedRecord });
   saveState("form_save");
   dialog.close();
   render();
@@ -706,8 +770,13 @@ function updateTopbarAccess() {
 }
 
 function getAccessUrl() {
-  const url = new URL(WEB_ACCESS_URL);
-  url.searchParams.set("v", "2.1.11-temporada");
+  const base = location.protocol.startsWith("http") && location.hostname !== "127.0.0.1" && location.hostname !== "localhost"
+    ? location.href
+    : WEB_ACCESS_URL;
+  const url = new URL(base, location.href);
+  url.pathname = url.pathname.endsWith("/") ? `${url.pathname}login.html` : url.pathname.replace(/[^/]*$/, "login.html");
+  url.searchParams.set("brand", "cupe-beach-living");
+  url.searchParams.set("v", "2.1.15-auto-20260703-2347");
   return url.toString();
 }
 
@@ -739,7 +808,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.11-temporada");
+  location.replace("login.html?v=2.1.15-auto-20260703-2347");
 }
 
 async function handleSyncAction(action) {
@@ -885,5 +954,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
+
+
+
+
+
 
 

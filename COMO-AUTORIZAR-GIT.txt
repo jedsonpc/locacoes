@@ -1,0 +1,24 @@
+COMO AUTORIZAR E PUBLICAR NO GITHUB
+
+1. Instale o Git for Windows:
+   https://git-scm.com/download/win
+
+2. Durante a instalacao, mantenha o Git Credential Manager marcado.
+
+3. Depois de instalar, feche e abra novamente o Codex ou o PowerShell.
+
+4. Para publicar o app:
+   - Abra D:\app Locacao\PUBLICAR-GITHUB.bat
+   - Na primeira vez, o GitHub vai abrir uma tela de login/autorizacao.
+   - Autorize a conta jedsonpc.
+
+5. Depois da primeira autorizacao, as proximas publicacoes ficam automaticas:
+   - O script faz git add -A
+   - Cria commit
+   - Envia para origin main
+
+Repositorio local esperado:
+D:\github\locacoes
+
+Repositorio remoto:
+https://github.com/jedsonpc/locacoes

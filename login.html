@@ -4,16 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f766e" />
-    <title>Login | Locacoes</title>
-    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <title>Login | Cupe Beach Living</title>
+    <link rel="icon" href="icon-192.png" type="image/png" />
     <style>
       * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
+        min-height: 100dvh;
         display: grid;
         place-items: center;
-        padding: 24px;
+        padding: 14px;
         background:
           linear-gradient(90deg, rgba(15, 23, 42, .82), rgba(15, 118, 110, .34)),
           url("cupe-beach-living.jpg") center / cover no-repeat;
@@ -21,29 +22,30 @@
         font-family: "Segoe UI", Arial, sans-serif;
       }
       .login-shell {
-        width: min(420px, 100%);
+        width: min(390px, 100%);
+        max-height: calc(100dvh - 28px);
+        overflow: auto;
         background: rgba(255, 255, 255, .94);
         border: 1px solid rgba(255, 255, 255, .72);
         border-radius: 8px;
         box-shadow: 0 24px 70px rgba(15, 23, 42, .26);
-        padding: 28px;
+        padding: 20px;
         backdrop-filter: blur(12px);
       }
       .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 22px;
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
       }
-      .brand img {
-        width: 54px;
-        height: 54px;
+      .brand img.login-brand-logo {
+        width: min(210px, 100%);
+        height: auto;
         border-radius: 8px;
-        box-shadow: 0 10px 24px rgba(15, 118, 110, .22);
+        box-shadow: none;
       }
       h1 {
         margin: 0;
-        font-size: 24px;
+        font-size: 21px;
         line-height: 1.1;
         letter-spacing: 0;
       }
@@ -53,14 +55,14 @@
       }
       label {
         display: block;
-        margin: 14px 0 6px;
+        margin: 10px 0 5px;
         color: #334155;
         font-size: 13px;
         font-weight: 700;
       }
       input {
         width: 100%;
-        height: 44px;
+        height: 40px;
         border: 1px solid #cbd5e1;
         border-radius: 8px;
         padding: 0 12px;
@@ -95,8 +97,8 @@
       }
       button {
         width: 100%;
-        height: 46px;
-        margin-top: 18px;
+        height: 42px;
+        margin-top: 14px;
         border: 0;
         border-radius: 8px;
         background: #0f766e;
@@ -123,18 +125,24 @@
         color: #155e75;
       }
       .hint {
-        margin: 14px 0 0;
-        line-height: 1.45;
+        margin: 10px 0 0;
+        line-height: 1.35;
+      }
+      @media (max-height: 650px) {
+        .brand img.login-brand-logo { width: min(170px, 100%); }
+        .brand { margin-bottom: 10px; }
+        h1 { font-size: 19px; }
+        .hint { display: none; }
       }
     </style>
   </head>
   <body>
     <form class="login-shell" id="loginForm">
       <div class="brand">
-        <img src="icon-192.png" alt="" />
+        <img class="login-brand-logo" src="logo-cupe-beach-living.png" alt="Cupe Beach Living - Gestao de Locacao" />
         <div>
-          <h1>Locacoes</h1>
-          <span>Acesso seguro Supabase</span>
+          <h1>Cupe Beach Living</h1>
+          <span>Gestao de locacao</span>
         </div>
       </div>
       <label for="email">E-mail</label>
@@ -150,8 +158,8 @@
     </form>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=2.1.11-temporada"></script>
-    <script src="supabase-sync.js?v=2.1.11-temporada"></script>
+    <script src="supabase-config.js?v=2.1.15-auto-20260703-2347"></script>
+    <script src="supabase-sync.js?v=2.1.15-auto-20260703-2347"></script>
     <script>
       const offlineUserKey = "app-locacao-last-online-user-v1";
 
@@ -239,4 +247,11 @@
     </script>
   </body>
 </html>
+
+
+
+
+
+
+
 

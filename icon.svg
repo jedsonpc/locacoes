@@ -1,16 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cupe Beach Living">
   <defs>
-    <linearGradient id="bg" x1="64" x2="448" y1="448" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0f766e"/>
-      <stop offset=".55" stop-color="#0e7490"/>
-      <stop offset="1" stop-color="#1d4ed8"/>
+    <linearGradient id="bg" x1="70" x2="442" y1="442" y2="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#064f4f"/>
+      <stop offset="1" stop-color="#08716c"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="104" fill="url(#bg)"/>
-  <path d="M104 249 256 124l152 125v143a34 34 0 0 1-34 34H138a34 34 0 0 1-34-34V249Z" fill="#fff" opacity=".96"/>
-  <path d="M166 241h180v52H166z" fill="#67e8f9"/>
-  <path d="M202 426V320h108v106" fill="#0f766e"/>
-  <path d="M140 229 256 134l116 95" fill="none" stroke="#f8fafc" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M140 229 256 134l116 95" fill="none" stroke="#0f766e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="256" y="280" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="74" font-weight="800" fill="#0f172a">AL</text>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#f8faf7" stroke-width="16"/>
+  <circle cx="190" cy="206" r="24" fill="#e6bd78"/>
+  <path d="M128 284c42 9 72-20 112-20s70 30 112 20 53-19 74-6" fill="none" stroke="#f8faf7" stroke-width="13" stroke-linecap="round"/>
+  <path d="M130 322c42 9 72-20 112-20s70 30 112 20 51-18 72-6" fill="none" stroke="#f8faf7" stroke-width="13" stroke-linecap="round"/>
+  <path d="M152 358c37 5 60-18 98-15 33 3 55 24 94 13" fill="none" stroke="#e6bd78" stroke-width="10" stroke-linecap="round"/>
+  <path d="M292 344c17-76 20-136-8-180" fill="none" stroke="#f8faf7" stroke-width="17" stroke-linecap="round"/>
+  <path d="M281 170c-31-7-59 6-78 37 36-11 63-7 78 11M286 171c14-31 38-45 74-38-31 16-50 35-58 62M293 168c35-25 72-25 111 1-38 1-68 11-92 31M285 171c-5 38-23 66-55 86 5-38 22-66 55-86M286 171c27 25 40 55 39 91-25-24-39-54-39-91" fill="#f8faf7"/>
 </svg>
