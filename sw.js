@@ -1,6 +1,6 @@
-﻿const appVersion = "local-2.1.15-auto-20260703-2347";
+﻿const appVersion = "local-2.1.28-auto-20260715-1224";
 const cachePrefix = "app-locacao-";
-const cacheName = `${cachePrefix}${appVersion}`;
+const cacheName = `${cachePrefix}${appVersion}-filtros-alertas-20260714`;
 const staticFiles = [
   "./",
   "./index.html",
@@ -45,6 +45,8 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
+
 
 
 

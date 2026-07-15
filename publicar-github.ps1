@@ -1,8 +1,8 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repo = "D:\github\locacoes"
-$baseVersion = "2.1.15"
+$repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
+$baseVersion = "2.1.28"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
@@ -31,6 +31,14 @@ if (-not $git) {
 if (-not (Test-Path -LiteralPath (Join-Path $repo ".git"))) {
   Write-Host "Repositorio nao encontrado em $repo"
   exit 1
+}
+
+function Invoke-Git {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
+  & $git -C $repo @GitArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Git falhou: git $($GitArgs -join ' ')"
+  }
 }
 
 function Set-TextFile([string]$Path, [string]$Content) {
@@ -111,16 +119,17 @@ if (Test-Path -LiteralPath $installerSrc) {
 Write-Host "Versao preparada: $versionSlug"
 Write-Host "Arquivos sincronizados para: $repo"
 
-& $git -C $repo status --short
-& $git -C $repo add -A
+Invoke-Git status --short
+Invoke-Git add -A
 $changes = & $git -C $repo status --short
 if (-not $changes) {
   Write-Host "Nada pendente para publicar."
   exit 0
 }
 
-& $git -C $repo commit -m $message
-& $git -C $repo push origin main
+Invoke-Git commit -m $message
+Invoke-Git pull --rebase origin main
+Invoke-Git push origin main
 Write-Host "GitHub atualizado com sucesso. O Vercel/GitHub Pages deve publicar a versao $versionSlug automaticamente."
 Write-Host "Depois da publicacao, o QR passara a abrir a versao atualizada."
 

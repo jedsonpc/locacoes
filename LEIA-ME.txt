@@ -31,6 +31,7 @@ Principais modulos:
 - Relatorios
 - Gestao de backup/importacao
 - Sincronizacao Supabase com login e RLS
+- Secao Institucional com Sobre, Suporte, Privacidade e LGPD
 
 Supabase:
 1. O projeto gestao-locacoes ja esta configurado para este app.

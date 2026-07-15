@@ -2,11 +2,14 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.15-auto-20260703-2347";
+const APP_VERSION_LABEL = "v2.1.28-auto-20260715-1224";
+const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
 
 const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const valueFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyFieldKeys = new Set(["baseDaily", "cleaningFee", "defaultSecurityDeposit", "reservationTotal", "dailyRate", "discount", "deposit", "securityDeposit", "firstPayment", "amount"]);
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -18,14 +21,15 @@ let searchTerm = "";
 
 const navItems = [
   ["dashboard", "Painel", "P", "Operacao de temporada"],
-  ["contracts", "Contratos", "C", "Reservas e estadias"],
+  ["contracts", "Reservas e Contratos", "C", "Reservas e estadias"],
   ["calendar", "Calendario", "A", "Ocupacao mensal"],
-  ["apartments", "Apartamentos", "I", "Unidades e capacidade"],
-  ["clients", "Clientes", "H", "Hospedes e origem"],
+  ["apartments", "Apartamentos", "I", "Unidades e Capacidade"],
+  ["clients", "Clientes", "H", "Hospedagem e Origem"],
   ["brokers", "Corretores", "R", "Comissoes"],
-  ["expenses", "Despesas", "$", "Custos por unidade"],
+  ["expenses", "Despesas", "$", "Custo por unidade"],
   ["reports", "Relatorios", "D", "Resultado e indicadores"],
-  ["settings", "Gestao", "G", "Backup, nuvem e versao"]
+  ["institutional", "Institucional", "S", "Sobre Privacidade e LGPD"],
+  ["settings", "Gestao", "G", "Backup Nuvem e Versao"]
 ];
 
 const collectionLabels = {
@@ -51,16 +55,142 @@ function dateBR(value) {
   return value ? dateFmt.format(parseDate(value)) : "-";
 }
 
+function dateLongBR(value) {
+  if (!value) return "-";
+  return parseDate(value).toLocaleDateString("pt-BR", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" });
+}
+
+function dateContractBR(value) {
+  if (!value) return "-";
+  const months = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+  const date = parseDate(value);
+  return String(date.getUTCDate()).padStart(2, "0") + " " + months[date.getUTCMonth()] + " " + date.getUTCFullYear();
+}
+
 function money(value) {
   return moneyFmt.format(Number(value || 0));
 }
 
+function moneyWithWords(value) {
+  const amount = Math.round(Number(value || 0));
+  const basic = {
+    0: "zero", 1: "um", 2: "dois", 3: "tres", 4: "quatro", 5: "cinco", 6: "seis", 7: "sete", 8: "oito", 9: "nove",
+    10: "dez", 20: "vinte", 30: "trinta", 40: "quarenta", 50: "cinquenta", 60: "sessenta", 70: "setenta", 80: "oitenta", 90: "noventa",
+    100: "cem", 200: "duzentos", 300: "trezentos", 400: "quatrocentos", 500: "quinhentos", 600: "seiscentos", 700: "setecentos", 800: "oitocentos", 900: "novecentos"
+  };
+  const belowHundred = (n) => basic[n] || (basic[Math.floor(n / 10) * 10] + " e " + basic[n % 10]);
+  const belowThousand = (n) => {
+    if (basic[n]) return basic[n];
+    if (n < 100) return belowHundred(n);
+    const hundred = Math.floor(n / 100) * 100;
+    return (hundred === 100 ? "cento" : basic[hundred]) + " e " + belowHundred(n % 100);
+  };
+  let words = basic[amount];
+  if (!words && amount < 1000) words = belowThousand(amount);
+  if (!words && amount < 1000000) {
+    const thousands = Math.floor(amount / 1000);
+    const rest = amount % 1000;
+    words = (thousands === 1 ? "mil" : belowThousand(thousands) + " mil") + (rest ? " e " + belowThousand(rest) : "");
+  }
+  return money(value) + (words ? " (" + words + " reais)" : "");
+}
+
 function toNumber(value) {
-  return Number(String(value ?? "").replace(",", ".")) || 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const raw = String(value ?? "").trim().replace(/[^\d,.-]/g, "");
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  return Number(normalized) || 0;
+}
+
+function brazilianValue(value) {
+  return valueFmt.format(toNumber(value));
+}
+
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
 }
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+}
+
+const removedExampleUnitNames = ["studio para temporada", "family club completo"];
+
+function normalizedText(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+const namedColors = {
+  azul: "#2563eb",
+  verde: "#0f766e",
+  vermelho: "#dc2626",
+  amarelo: "#d97706",
+  laranja: "#ea580c",
+  roxo: "#7c3aed",
+  rosa: "#db2777",
+  cinza: "#64748b",
+  preto: "#111827",
+  branco: "#94a3b8",
+  marrom: "#92400e",
+  dourado: "#c49a5a",
+  anil: "#3730a3",
+  azure: "#007fff",
+  turquesa: "#0891b2"
+};
+
+function colorForName(value) {
+  const normalized = String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!normalized) return "";
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) return normalized;
+  if (normalized.includes("azure")) return namedColors.azure;
+  if (normalized.includes("anil")) return namedColors.anil;
+  return namedColors[normalized] || "";
+}
+
+function colorStyle(value) {
+  const color = colorForName(value);
+  return color ? ` style="--apt-color:${escapeHtml(color)}"` : "";
+}
+
+function isValidCpf(value) {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+  const digit = (base) => {
+    const sum = base.split("").reduce((total, number, index) => total + Number(number) * (base.length + 1 - index), 0);
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+  return digit(cpf.slice(0, 9)) === Number(cpf[9]) && digit(cpf.slice(0, 10)) === Number(cpf[10]);
+}
+
+function isValidCnpj(value) {
+  const cnpj = onlyDigits(value);
+  if (cnpj.length !== 14 || /^(\d)\1+$/.test(cnpj)) return false;
+  const calc = (base, weights) => {
+    const sum = base.split("").reduce((total, number, index) => total + Number(number) * weights[index], 0);
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+  const first = calc(cnpj.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const second = calc(cnpj.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return first === Number(cnpj[12]) && second === Number(cnpj[13]);
+}
+
+function validateDocumentValue(value) {
+  const digits = onlyDigits(value);
+  if (!digits) return "";
+  if (digits.length === 11) return isValidCpf(digits) ? "" : "CPF invalido.";
+  if (digits.length === 14) return isValidCnpj(digits) ? "" : "CNPJ invalido.";
+  return "Informe CPF com 11 digitos ou CNPJ com 14 digitos.";
+}
+
+async function lookupCnpjName(cnpj) {
+  const digits = onlyDigits(cnpj);
+  if (!isValidCnpj(digits)) return null;
+  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+  if (!response.ok) throw new Error("CNPJ nao localizado na consulta publica.");
+  const data = await response.json();
+  return data.razao_social || data.nome_fantasia || "";
 }
 
 function nights(checkIn, checkOut) {
@@ -82,10 +212,16 @@ function getById(collection, id) {
   return state[collection]?.find((item) => item.id === id);
 }
 
+function contractBrokerPercent(contract) {
+  if (!contract?.brokerId) return 0;
+  const broker = getById("brokers", contract.brokerId);
+  return toNumber(broker?.commissionDefault);
+}
+
 function createSeed() {
-  const apt1 = { id: uid(), name: "Apartamento Vista Mar 301", address: "Orla central", type: "Apartamento", status: "ativo", ownerName: "Proprietario exemplo", ownerDocument: "", ownerPhone: "", ownerEmail: "", ownerShare: 100, rooms: 2, maxGuests: 6, baseDaily: 420, cleaningFee: 180, notes: "Ideal para familias; aceita pet pequeno mediante aprovacao." };
+  const apt1 = { id: uid(), name: "Flat 008 Anil", unitNumber: "008", block: "Anil (A)", address: "Av. Beira Mar S/N, Rodovia PE 09 KM 05 Praia do Cupe, Porto de Galinhas, CEP 55590-000", type: "Flat", status: "ativo", ownerName: "Margarida Maria Monteiro", ownerDocument: "986.955.414-87", ownerPhone: "(81) 99969-2463", ownerEmail: "", ownerAddress: "Av. Beira Mar, s/n, Praia do Cupe, CEP 55.590-000, Ipojuca/PE", ownerNationality: "brasileira", ownerProfession: "", ownerBankHolder: "Margarida Maria Queiroz Monteiro", ownerPixKey: "986955414-87", ownerBankName: "Banco Safra", ownerShare: 100, rooms: 2, maxGuests: 8, baseDaily: 420, cleaningFee: 180, defaultSecurityDeposit: 300, contractNotes: "", notes: "Ideal para familias; aceita pet pequeno mediante aprovacao." };
   const apt2 = { id: uid(), name: "Studio Executivo 1207", address: "Centro", type: "Studio", status: "ativo", ownerName: "Proprietario exemplo", ownerDocument: "", ownerPhone: "", ownerEmail: "", ownerShare: 100, rooms: 1, maxGuests: 3, baseDaily: 260, cleaningFee: 120, notes: "Alta procura para estadias curtas." };
-  const client = { id: uid(), name: "Marina Azevedo", document: "000.000.000-00", phone: "(85) 99999-0000", email: "marina@email.com", origin: "Instagram", notes: "Preferencia por check-in antecipado." };
+  const client = { id: uid(), name: "Marina Azevedo", document: "000.000.000-00", phone: "(85) 99999-0000", email: "marina@email.com", address: "Endereco completo do locatario", origin: "Instagram", notes: "Preferencia por check-in antecipado." };
   const broker = { id: uid(), name: "Carlos Lima", phone: "(85) 98888-0000", email: "carlos@corretor.com", commissionDefault: 12, status: "ativo", notes: "" };
   const checkIn = todayIso();
   const checkOut = addDays(checkIn, 5);
@@ -93,9 +229,9 @@ function createSeed() {
     apartments: [apt1, apt2],
     clients: [client],
     brokers: [broker],
-    contracts: [{ id: uid(), code: "CTR-EXEMPLO", status: "confirmada", clientId: client.id, apartmentId: apt1.id, brokerId: broker.id, brokerPercent: 12, checkIn, checkOut, guests: 2, children: 1, pets: "nao", paymentStatus: "parcial", dailyRate: 450, cleaningFee: 180, discount: 0, deposit: 900, notes: "Contrato de exemplo." }],
+    contracts: [{ id: uid(), code: "CTR-EXEMPLO", status: "confirmada", clientId: client.id, apartmentId: apt1.id, brokerId: broker.id, brokerPercent: 12, checkIn, checkOut, checkInTime: "14:00", checkOutTime: "11:00", guests: 2, children: 1, pets: "nao", paymentStatus: "parcial", dailyRate: 450, cleaningFee: 180, discount: 0, deposit: 900, securityDeposit: 300, firstPayment: 900, firstPaymentDate: todayIso(), balanceDueDate: checkIn, issueDate: todayIso(), notes: "Contrato de exemplo." }],
     expenses: [{ id: uid(), date: todayIso(), apartmentId: apt1.id, category: "Limpeza", amount: 160, paid: "pago", description: "Limpeza pos-hospedagem." }],
-    settings: { month: monthIso(), reportMonth: monthIso(), calendarApartment: "", reportApartment: "" }
+    settings: { month: monthIso(), reportMonth: monthIso(), calendarApartment: "", reportApartment: "", contractFilterStart: "", contractFilterEnd: "", contractFilterApartment: "" }
   };
 }
 
@@ -113,19 +249,64 @@ function normalize(next) {
   for (const key of Object.keys(base)) {
     if (Array.isArray(base[key])) incoming[key] = Array.isArray(incoming[key]) ? incoming[key] : base[key];
   }
-  incoming.apartments = incoming.apartments.map(normalizeApartment);
-  incoming.settings = { ...base.settings, ...(incoming.settings || {}) };
+  incoming.apartments = incoming.apartments
+    .map(normalizeApartment)
+    .filter((apt) => !removedExampleUnitNames.includes(normalizedText(apt.name || apt.title)));
+  incoming.clients = incoming.clients.map(normalizeClient);
+  incoming.contracts = incoming.contracts.map(normalizeContract);
+  incoming.settings = { ...base.settings, contractReportId: "", ...(incoming.settings || {}) };
   return incoming;
+}
+
+function normalizeClient(client = {}) {
+  return {
+    ...client,
+    document: client.document || client.cpf || client.cpfCnpj || "",
+    phone: client.phone || client.telephone || "",
+    email: client.email || "",
+    address: client.address || client.fullAddress || client.endereco || "",
+    origin: client.origin || client.source || "Direto",
+    notes: client.notes || ""
+  };
+}
+
+function normalizeContract(contract = {}) {
+  const received = toNumber(contract.deposit);
+  return {
+    ...contract,
+    hasFormalContract: contract.hasFormalContract || "sim",
+    checkInTime: contract.checkInTime || "14:00",
+    checkOutTime: contract.checkOutTime || "11:00",
+    securityDeposit: contract.securityDeposit === undefined || contract.securityDeposit === "" ? 300 : toNumber(contract.securityDeposit),
+    firstPayment: contract.firstPayment === undefined || contract.firstPayment === "" ? received : toNumber(contract.firstPayment),
+    firstPaymentDate: contract.firstPaymentDate || "",
+    balanceDueDate: contract.balanceDueDate || contract.checkIn || "",
+    issueDate: contract.issueDate || todayIso(),
+    cancellationPolicy: contract.cancellationPolicy || "Nao reembolsavel.",
+    paymentInstructions: contract.paymentInstructions || "",
+    contractNotes: contract.contractNotes || ""
+  };
 }
 
 function normalizeApartment(apt = {}) {
   const ownerName = apt.ownerName || apt.owner || apt.proprietario || "";
   return {
     ...apt,
+    colorName: apt.colorName || apt.color || apt.cor || "",
     ownerName,
     ownerDocument: apt.ownerDocument || apt.ownerCpfCnpj || apt.ownerCpf || apt.ownerCnpj || "",
     ownerPhone: apt.ownerPhone || apt.ownerContact || "",
     ownerEmail: apt.ownerEmail || "",
+    ownerAddress: apt.ownerAddress || apt.ownerEndereco || "",
+    ownerNationality: apt.ownerNationality || "brasileira",
+    ownerProfession: apt.ownerProfession || "",
+    ownerBankHolder: apt.ownerBankHolder || apt.bankHolder || apt.pixHolder || "",
+    ownerPixKey: apt.ownerPixKey || apt.pixKey || "",
+    ownerBankName: apt.ownerBankName || apt.bankName || "",
+    unitNumber: apt.unitNumber || apt.apartmentNumber || apt.numero || "",
+    block: apt.block || apt.bloco || "",
+    defaultSecurityDeposit: apt.defaultSecurityDeposit === undefined || apt.defaultSecurityDeposit === "" ? 300 : toNumber(apt.defaultSecurityDeposit),
+    contractNotes: apt.contractNotes || "",
     ownerShare: apt.ownerShare === undefined || apt.ownerShare === "" ? 100 : toNumber(apt.ownerShare)
   };
 }
@@ -138,7 +319,7 @@ function ownerKey(apt) {
   return apartmentOwnerName(apt).trim().toLowerCase();
 }
 
-function ownerSummaryRows(metrics) {
+function ownerSummaryRows(metrics, month = monthIso()) {
   const rows = new Map();
   const ensure = (apt) => {
     const key = ownerKey(apt);
@@ -150,11 +331,12 @@ function ownerSummaryRows(metrics) {
 
   metrics.contracts.forEach((contract) => {
     const apt = getById("apartments", contract.apartmentId);
-    const totals = contractTotals(contract);
+    const revenue = monthlyContractRevenue(contract, month);
+    const commission = revenue * (contractBrokerPercent(contract) / 100);
     const row = ensure(apt);
-    row.revenue += totals.total;
-    row.commission += totals.commission;
-    row.net += totals.total - totals.commission;
+    row.revenue += revenue;
+    row.commission += commission;
+    row.net += revenue - commission;
   });
 
   metrics.expenses.forEach((expense) => {
@@ -179,6 +361,16 @@ function migrateLongTermState(oldState, base) {
     ownerPhone: apt.ownerPhone || apt.ownerContact || "",
     ownerEmail: apt.ownerEmail || "",
     ownerShare: apt.ownerShare === undefined || apt.ownerShare === "" ? 100 : toNumber(apt.ownerShare),
+    ownerAddress: apt.ownerAddress || "",
+    ownerNationality: apt.ownerNationality || "brasileira",
+    ownerProfession: apt.ownerProfession || "",
+    ownerBankHolder: apt.ownerBankHolder || "",
+    ownerPixKey: apt.ownerPixKey || "",
+    ownerBankName: apt.ownerBankName || "",
+    unitNumber: apt.unitNumber || "",
+    block: apt.block || "",
+    defaultSecurityDeposit: apt.defaultSecurityDeposit === undefined || apt.defaultSecurityDeposit === "" ? 300 : toNumber(apt.defaultSecurityDeposit),
+    contractNotes: apt.contractNotes || "",
     rooms: toNumber(apt.bedrooms || apt.rooms),
     maxGuests: toNumber(apt.maxGuests || Math.max(2, toNumber(apt.bedrooms) * 2)),
     baseDaily: toNumber(apt.baseDaily || apt.price),
@@ -192,6 +384,7 @@ function migrateLongTermState(oldState, base) {
     document: client.document || "",
     phone: client.phone || "",
     email: client.email || "",
+    address: client.address || client.endereco || "",
     origin: client.source || client.origin || "Direto",
     notes: client.notes || client.profile || ""
   })) : base.clients;
@@ -278,9 +471,13 @@ function contractTotals(contract) {
   const cleaning = toNumber(contract.cleaningFee);
   const discount = toNumber(contract.discount);
   const total = Math.max(0, lodging + cleaning - discount);
-  const commission = total * (toNumber(contract.brokerPercent) / 100);
+  const commission = total * (contractBrokerPercent(contract) / 100);
   const received = toNumber(contract.deposit);
   return { stayNights, lodging, cleaning, discount, total, commission, received, pending: Math.max(0, total - received) };
+}
+
+function monthlyContractRevenue(contract, month) {
+  return occupancyDays(contract, month) * toNumber(contract.dailyRate);
 }
 
 function contractTouchesMonth(contract, month) {
@@ -312,13 +509,17 @@ function getMonthContracts(month, apartmentId = "") {
 function buildMetrics(month = monthIso(), apartmentId = "") {
   const contracts = getMonthContracts(month, apartmentId);
   const expenses = state.expenses.filter((expense) => expense.date?.startsWith(month) && (!apartmentId || expense.apartmentId === apartmentId));
-  const revenue = contracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
-  const commission = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+  const revenue = contracts.reduce((sum, contract) => sum + monthlyContractRevenue(contract, month), 0);
+  const commission = contracts.reduce((sum, contract) => sum + monthlyContractRevenue(contract, month) * (contractBrokerPercent(contract) / 100), 0);
   const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
   const occupied = contracts.reduce((sum, contract) => sum + occupancyDays(contract, month), 0);
   const apartmentCount = apartmentId ? 1 : Math.max(1, state.apartments.filter((apt) => apt.status !== "inativo").length);
   const daysInMonth = monthRange(month).end.getUTCDate() * apartmentCount;
   return { contracts, expenses, revenue, commission, expenseTotal, net: revenue - commission - expenseTotal, occupied, occupancy: daysInMonth ? occupied / daysInMonth : 0 };
+}
+
+function percent(value) {
+  return `${Math.round(Number(value || 0) * 100)}%`;
 }
 
 function filtered(collection) {
@@ -343,7 +544,7 @@ function render() {
   const item = navItems.find(([id]) => id === route) || navItems[0];
   document.querySelector("#pageTitle").textContent = item[1];
   document.querySelector("#pageKicker").textContent = item[3];
-  const views = { dashboard, contracts, calendar: calendarView, apartments, clients, brokers, expenses, reports: reportsView, settings: settingsView };
+  const views = { dashboard, contracts, calendar: calendarView, apartments, clients, brokers, expenses, reports: reportsView, institutional: institutionalView, settings: settingsView };
   document.querySelector("#app").innerHTML = (views[route] || dashboard)();
   updateTopbarAccess();
   bindViewEvents();
@@ -359,6 +560,25 @@ function dashboard() {
   const month = state.settings.month || monthIso();
   const m = buildMetrics(month);
   const conflicts = state.contracts.filter(hasConflict);
+  const today = todayIso();
+  const tomorrow = addDays(today, 1);
+  const reservationAlerts = state.contracts
+    .filter((contract) => contract.status !== "cancelada" && (contract.checkIn === today || contract.checkIn === tomorrow))
+    .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)))
+    .map((contract) => {
+      const apartment = getById("apartments", contract.apartmentId)?.name || "Apartamento";
+      const client = getById("clients", contract.clientId)?.name || "Cliente nao informado";
+      const isToday = contract.checkIn === today;
+      return {
+        title: isToday ? `Check-in hoje - ${apartment}` : `Check-in amanha - ${apartment}`,
+        text: `${client} - ${dateBR(contract.checkIn)} as ${contract.checkInTime || "14:00"}`,
+        cls: isToday ? "danger" : "warn"
+      };
+    });
+  const occupancyAlerts = [
+    ...reservationAlerts,
+    ...conflicts.map((contract) => ({ title: getById("apartments", contract.apartmentId)?.name || "Apartamento", text: `Conflito em ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}`, cls: "danger" }))
+  ];
   const arrivals = state.contracts.filter((contract) => contract.checkIn >= todayIso() && contract.status !== "cancelada").sort((a, b) => a.checkIn.localeCompare(b.checkIn)).slice(0, 6);
   return `
     <section class="panel">
@@ -377,7 +597,7 @@ function dashboard() {
       </section>
       <section class="panel">
         <div class="toolbar"><div><p class="eyebrow">Alertas</p><h2>Gestao da ocupacao</h2></div></div>
-        <div class="list">${conflicts.length ? conflicts.map((contract) => alertRow({ title: getById("apartments", contract.apartmentId)?.name || "Apartamento", text: `Conflito em ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}`, cls: "danger" })).join("") : empty("Nenhum conflito de ocupacao.")}</div>
+        <div class="list">${occupancyAlerts.length ? occupancyAlerts.map(alertRow).join("") : empty("Nenhum alerta para hoje ou amanha.")}</div>
       </section>
     </div>
     <section class="panel">
@@ -396,7 +616,7 @@ function alertRow(item) {
 }
 
 function apartmentCard(apt) {
-  return `<article class="card apartment-card"><div class="apartment-cover">${escapeHtml(apt.name)}</div><div class="card-head"><strong>${escapeHtml(apt.type || "Apartamento")}</strong><span class="status ${statusClass(apt.status)}">${escapeHtml(apt.status || "ativo")}</span></div><p class="muted">${escapeHtml(apt.address || "Endereco nao informado")}</p><p class="owner-line">Proprietario: <strong>${escapeHtml(apartmentOwnerName(apt))}</strong></p><div class="apartment-meta"><span class="status info">${apt.rooms || 0} quarto(s)</span><span class="status info">ate ${apt.maxGuests || 0}</span><span class="status ok">${money(apt.baseDaily)}</span></div><div class="filters"><button class="ghost-button" data-edit="apartments:${apt.id}" type="button">Editar</button></div></article>`;
+  return `<article class="card apartment-card"><div class="apartment-cover"${colorStyle(apt.colorName || apt.name)}><span>${escapeHtml(apt.name)}</span>${apt.colorName ? `<small>${escapeHtml(apt.colorName)}</small>` : ""}</div><div class="card-head"><strong>${escapeHtml(apt.type || "Apartamento")}</strong><span class="status ${statusClass(apt.status)}">${escapeHtml(apt.status || "ativo")}</span></div><p class="muted">${escapeHtml(apt.address || "Endereco nao informado")}</p><p class="owner-line">Proprietario: <strong>${escapeHtml(apartmentOwnerName(apt))}</strong></p><div class="apartment-meta"><span class="status info">${apt.rooms || 0} quarto(s)</span><span class="status info">ate ${apt.maxGuests || 0}</span><span class="status ok">${money(apt.baseDaily)}</span></div><div class="filters"><button class="ghost-button" data-edit="apartments:${apt.id}" type="button">Editar</button></div></article>`;
 }
 
 function tableView(collection, title, headers, rowFn) {
@@ -410,7 +630,7 @@ function apartments() {
 }
 
 function clients() {
-  return tableView("clients", "Clientes", ["Cliente", "Contato", "Origem", "Acoes"], (client) => [escapeHtml(client.name), `${escapeHtml(client.phone || "-")}<br>${escapeHtml(client.email || "")}`, escapeHtml(client.origin || "-"), actions("clients", client.id)]);
+  return tableView("clients", "Clientes", ["Cliente", "Contato", "Endereco", "Origem", "Acoes"], (client) => [escapeHtml(client.name), `${escapeHtml(client.phone || "-")}<br>${escapeHtml(client.email || "")}<br>${escapeHtml(client.document || "")}`, escapeHtml(client.address || "-"), escapeHtml(client.origin || "-"), actions("clients", client.id)]);
 }
 
 function brokers() {
@@ -425,18 +645,30 @@ function expenses() {
 }
 
 function contracts() {
-  return tableView("contracts", "Contratos e estadias", ["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], contractRow);
+  const start = state.settings.contractFilterStart || "";
+  const end = state.settings.contractFilterEnd || "";
+  const apartmentId = state.settings.contractFilterApartment || "";
+  const hasFilters = Boolean(start || end || apartmentId);
+  const ordered = filtered("contracts")
+    .filter((contract) => !apartmentId || contract.apartmentId === apartmentId)
+    .filter((contract) => !start || String(contract.checkOut || "") >= start)
+    .filter((contract) => !end || String(contract.checkIn || "") <= end)
+    .sort((a, b) => String(b.createdAt || b.checkIn || "").localeCompare(String(a.createdAt || a.checkIn || "")) || String(b.checkOut || "").localeCompare(String(a.checkOut || "")));
+  const items = hasFilters ? ordered : ordered.slice(0, 5);
+  const listInfo = hasFilters ? `${items.length} reserva(s) encontrada(s)` : `Exibindo os ${Math.min(5, ordered.length)} registros mais recentes`;
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="primary-button" data-add="contracts" type="button">+ Nova reserva</button><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Periodo inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Periodo final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
 }
 
-function contractRow(contract) {
+function contractRow(contract, activeMonth = state.settings.reportMonth || state.settings.month || monthIso()) {
   const totals = contractTotals(contract);
+  const monthRevenue = monthlyContractRevenue(contract, activeMonth);
   return [
     `${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}<br>${totals.stayNights} diaria(s)`,
     escapeHtml(getById("clients", contract.clientId)?.name || "-"),
     `${escapeHtml(getById("apartments", contract.apartmentId)?.name || "-")}${hasConflict(contract) ? `<br><span class="status danger">Conflito</span>` : ""}`,
     escapeHtml(apartmentOwnerName(getById("apartments", contract.apartmentId))),
     `${contract.guests || 0} adulto(s)<br>${contract.children || 0} crianca(s), pet: ${contract.pets || "nao"}`,
-    `${money(totals.total)}<br>Comissao: ${money(totals.commission)}<br>Pendente: ${money(totals.pending)}`,
+    `Mes: ${money(monthRevenue)}<br>Total reserva: ${money(totals.total)}<br>Comissao mes: ${money(monthRevenue * (contractBrokerPercent(contract) / 100))}`,
     `${status(contract.status)}<br>${status(contract.paymentStatus)}`,
     actions("contracts", contract.id)
   ];
@@ -445,7 +677,15 @@ function contractRow(contract) {
 function calendarView() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Ocupacao</p><h2>Calendario mensal</h2></div><div class="filters"><label class="field">Mes<input id="calendarMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar">${calendarHtml(month, apartmentId)}</div></section>`;
+  return `<section class="panel calendar-panel"><div class="toolbar"><div><p class="eyebrow">Ocupacao mensal</p><h2>Calendario</h2></div><div class="filters calendar-filters">${calendarMonthYearControls(month)}<label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-calendar-export type="button">Exportar WhatsApp</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar" id="calendarGrid">${calendarHtml(month, apartmentId)}</div></section>`;
+}
+
+function calendarMonthYearControls(month) {
+  const { year, monthIndex } = monthRange(month);
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const years = [];
+  for (let item = year - 2; item <= year + 3; item += 1) years.push(item);
+  return `<label class="field compact-date-field">Mes<select id="calendarMonthSelect">${monthNames.map((name, index) => `<option value="${String(index + 1).padStart(2, "0")}" ${index + 1 === monthIndex ? "selected" : ""}>${name}</option>`).join("")}</select></label><label class="field compact-date-field">Ano<select id="calendarYearSelect">${years.map((item) => `<option value="${item}" ${item === year ? "selected" : ""}>${item}</option>`).join("")}</select></label>`;
 }
 
 function calendarHtml(month, apartmentId) {
@@ -455,31 +695,240 @@ function calendarHtml(month, apartmentId) {
   for (let day = 1; day <= end.getUTCDate(); day++) cells.push(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), day)));
   while (cells.length % 7 !== 0) cells.push(null);
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => `<div class="weekday">${day}</div>`).join("");
-  return weekdays + cells.map((date) => {
-    if (!date) return `<div class="day out"></div>`;
-    const bookings = state.contracts.filter((contract) => {
-      if (apartmentId && contract.apartmentId !== apartmentId) return false;
-      return contract.status !== "cancelada" && parseDate(contract.checkIn) <= date && parseDate(contract.checkOut) > date;
-    });
-    return `<div class="day"><strong>${date.getUTCDate()}</strong>${bookings.map((contract) => `<span class="event ${hasConflict(contract) ? "blocked" : ""}">${getById("clients", contract.clientId)?.name || "Cliente"} - ${getById("apartments", contract.apartmentId)?.name || "Apto"}</span>`).join("")}</div>`;
+  return weekdays + cells.map((date, index) => {
+    const weekStart = Math.floor(index / 7) * 7;
+    const compactWeek = !cells.slice(weekStart, weekStart + 7).some((weekDate) => weekDate && calendarEventsForDate(weekDate, apartmentId).length);
+    if (!date) return `<div class="day out ${compactWeek ? "compact" : ""}"></div>`;
+    const events = calendarEventsForDate(date, apartmentId);
+    return `<div class="day ${compactWeek ? "compact" : ""}"><strong>${date.getUTCDate()}</strong>${events.map(calendarEventHtml).join("")}</div>`;
   }).join("");
 }
 
+function calendarBookingsForDate(date, apartmentId = "") {
+  return state.contracts.filter((contract) => {
+    if (apartmentId && contract.apartmentId !== apartmentId) return false;
+    return contract.status !== "cancelada" && parseDate(contract.checkIn) <= date && parseDate(contract.checkOut) > date;
+  });
+}
+
+function calendarEventsForDate(date, apartmentId = "") {
+  const bookings = calendarBookingsForDate(date, apartmentId).map((contract) => ({ contract, type: "stay" }));
+  const checkouts = state.contracts
+    .filter((contract) => {
+      if (apartmentId && contract.apartmentId !== apartmentId) return false;
+      return contract.status !== "cancelada" && parseDate(contract.checkOut).getTime() === date.getTime();
+    })
+    .map((contract) => ({ contract, type: "checkout" }));
+  return [...bookings, ...checkouts];
+}
+
+function calendarEventHtml(event) {
+  const contract = event.contract || event;
+  const apt = getById("apartments", contract.apartmentId);
+  const client = getById("clients", contract.clientId);
+  const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
+  const aptName = apt?.name || apt?.unitNumber || "Apto";
+  const isCheckout = event.type === "checkout";
+  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small></span>`;
+}
+
+function shortName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "Reserva";
+  return parts.length === 1 ? parts[0] : `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+function guestText(contract) {
+  const adults = toNumber(contract.guests);
+  const children = toNumber(contract.children);
+  const parts = [];
+  if (adults) parts.push(adults + " (" + adults + ") adulto(s)");
+  if (children) parts.push(children + " crianca(s)");
+  return parts.join(", ") || "hospedes nao informados";
+}
+
+function contractFileName(contract) {
+  const client = getById("clients", contract.clientId);
+  const apt = getById("apartments", contract.apartmentId);
+  const name = ["Contrato", apt?.name, client?.name, dateBR(contract.checkIn), "a", dateBR(contract.checkOut)].filter(Boolean).join(" ");
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") + ".html";
+}
+
+function contractDocumentHtml(contract) {
+  if ((contract.hasFormalContract || "sim") === "nao") {
+    return `<article class="contract-document"><h2>Reserva sem contrato formal</h2><p>Esta reserva foi cadastrada como simples, sem emissao de contrato formal.</p><p><strong>Periodo:</strong> ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}</p><p><strong>Apartamento:</strong> ${escapeHtml(getById("apartments", contract.apartmentId)?.name || "-")}</p><p><strong>Cliente:</strong> ${escapeHtml(getById("clients", contract.clientId)?.name || "Nao informado")}</p></article>`;
+  }
+  const client = getById("clients", contract.clientId) || {};
+  const apt = getById("apartments", contract.apartmentId) || {};
+  const totals = contractTotals(contract);
+  const ownerQual = [apt.ownerName || "Locador nao informado", apt.ownerNationality, apt.ownerProfession].filter(Boolean).join(", ");
+  const propertyName = apt.unitNumber ? "apartamento " + apt.unitNumber + (apt.block ? " do bloco " + apt.block : "") : (apt.name || "imovel locado");
+  const balance = Math.max(0, totals.total - toNumber(contract.firstPayment));
+  const issueDate = contract.issueDate || todayIso();
+  const paymentInstructions = contract.paymentInstructions || [apt.ownerBankHolder ? "Titular: " + apt.ownerBankHolder : "", apt.ownerPixKey ? "Chave Pix/CPF: " + apt.ownerPixKey : "", apt.ownerBankName || ""].filter(Boolean).join("<br>");
+  return `<article class="contract-document" id="contractDocument">
+    <h2>CONTRATO DE LOCACAO RESIDENCIAL POR TEMPORADA</h2>
+    <h3>${escapeHtml((apt.name || "Imovel").toUpperCase())}</h3>
+    <p><strong>LOCADOR:</strong> ${escapeHtml(ownerQual)}, inscrito(a) no CPF/CNPJ n. ${escapeHtml(apt.ownerDocument || "nao informado")}, com endereco em ${escapeHtml(apt.ownerAddress || apt.address || "nao informado")}, telefone ${escapeHtml(apt.ownerPhone || "nao informado")}.</p>
+    <p><strong>LOCATARIO:</strong> ${escapeHtml(client.name || "Cliente nao informado")}<br><strong>CPF:</strong> ${escapeHtml(client.document || "nao informado")}<br><strong>Endereco:</strong> ${escapeHtml(client.address || "nao informado")}</p>
+    <p>As partes acima identificadas acordam com o presente Contrato de Locacao Residencial para Temporada, regido pelas clausulas seguintes:</p>
+    <h4>DO OBJETO DO CONTRATO</h4>
+    <p><strong>Clausula 1a.</strong> O objeto do presente instrumento e a locacao por temporada do imovel residencial situado no ${escapeHtml(propertyName)}, ${escapeHtml(apt.address || "endereco nao informado")}, pelo seguinte periodo:</p>
+    <p><strong>Check In:</strong> ${dateContractBR(contract.checkIn)} (${escapeHtml(contract.checkInTime || "14:00")}) - <strong>Check Out:</strong> ${dateContractBR(contract.checkOut)} (${escapeHtml(contract.checkOutTime || "11:00")}), isto e, ${totals.stayNights} diaria(s), compreendendo ${escapeHtml(guestText(contract))}. Pet: ${escapeHtml(contract.pets || "nao")}.</p>
+    <h4>DAS OBRIGACOES DO LOCADOR E DO LOCATARIO</h4>
+    <p><strong>Clausula 2a.</strong> Fica obrigado o LOCATARIO a agir de acordo com o estabelecido neste contrato e nas normas do condominio, com todas as responsabilidades legais cabiveis, durante a vigencia deste instrumento.</p>
+    <p><strong>Clausula 3a.</strong> Obriga-se o LOCATARIO a cuidar pela conservacao do imovel, bem como por todos os bens nele contidos, sendo responsavel por entrega-lo ao termino do prazo estipulado nas condicoes em que o recebeu.</p>
+    <p><strong>Clausula 4a.</strong> Os custos dos servicos oferecidos pelo condominio, quando existentes, seguem as regras internas do empreendimento, nao podendo o LOCADOR ser responsabilizado por eventual problema ocorrido em seu fornecimento.</p>
+    <p><strong>Clausula 5a.</strong> Fica proibida a entrada no condominio de pessoas que nao estejam relacionadas na reserva.</p>
+    <h4>DAS REGRAS DE USO DO IMOVEL</h4>
+    <ol><li>Descartar o lixo domestico ao final da hospedagem nas lixeiras indicadas pelo condominio.</li><li>Cuidar dos moveis, utensilios, eletrodomesticos e enxoval do imovel.</li><li>Nao fumar dentro do imovel.</li><li>Informar previamente a existencia de pet na reserva, quando permitido.</li><li>Atrasos no check-out podem gerar cobranca proporcional conforme a tarifa da reserva.</li></ol>
+    ${apt.contractNotes ? `<p>${escapeHtml(apt.contractNotes).replace(/\n/g, "<br>")}</p>` : ""}
+    ${contract.contractNotes ? `<p>${escapeHtml(contract.contractNotes).replace(/\n/g, "<br>")}</p>` : ""}
+    <h4>POLITICA DE CANCELAMENTO</h4><p>${escapeHtml(contract.cancellationPolicy || "Nao reembolsavel.")}</p>
+    <h4>DO VALOR E REGRAS DO DEPOSITO CAUCAO CONTRA DANOS</h4>
+    <p>Um deposito caucao de ${moneyWithWords(contract.securityDeposit)} e exigido na chegada. O valor deve ser pago via transferencia bancaria ou Pix na mesma conta indicada para o pagamento das parcelas. O valor integral da caucao sera reembolsado apos vistoria no imovel ate 24 horas do check-out, quando nao houver danos ou pendencias.</p>
+    <h4>DO VALOR DO ALUGUEL</h4>
+    <p><strong>Clausula 7a.</strong> O LOCATARIO efetuara o deposito na conta indicada pelo LOCADOR, a titulo de aluguel, no valor de ${moneyWithWords(totals.total)}, referente ao valor total do aluguel do periodo de ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}.</p>
+    <p>O pagamento deve ser efetuado da seguinte forma:</p><ol><li>Entrada/sinal no valor de ${moneyWithWords(contract.firstPayment)}${contract.firstPaymentDate ? ` - recebido em ${dateBR(contract.firstPaymentDate)}` : ""}.</li><li>Saldo no valor de ${moneyWithWords(balance)} - a ser pago ate ${dateBR(contract.balanceDueDate || contract.checkIn)}.</li></ol>
+    <p>${paymentInstructions || "Dados de pagamento nao informados no cadastro do imovel."}</p>
+    <h4>DO PRAZO E DOS HORARIOS</h4><p><strong>Clausula 8a.</strong> A locacao sera no periodo de ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}, devendo o LOCATARIO receber e devolver a chave conforme orientacao do LOCADOR ou da recepcao do condominio.</p>
+    <p>Por estarem assim justos e contratados, firmam o presente instrumento.</p>
+    <div class="signature-grid"><span>Locador</span><span>Locatario</span></div>
+    <p class="contract-place">Ipojuca, ${dateLongBR(issueDate)}.</p>
+  </article>`;
+}
+
+function contractReportPanel() {
+  const selectedId = state.settings.contractReportId || "";
+  const selected = state.contracts.find((contract) => contract.id === selectedId) || null;
+  const pageSize = 10;
+  const ordered = [...state.contracts].sort((a, b) => String(b.checkIn || "").localeCompare(String(a.checkIn || "")) || String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || "")));
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const page = Math.min(Math.max(0, toNumber(state.settings.contractReportPage)), totalPages - 1);
+  const pageContracts = ordered.slice(page * pageSize, page * pageSize + pageSize);
+  const options = `<option value="">Selecione uma reserva</option>` + pageContracts.map((contract) => {
+    const client = getById("clients", contract.clientId)?.name || "Cliente";
+    const apt = getById("apartments", contract.apartmentId)?.name || "Imovel";
+    return `<option value="${contract.id}" ${selected?.id === contract.id ? "selected" : ""}>${escapeHtml(client)} - ${escapeHtml(apt)} - ${dateBR(contract.checkIn)}</option>`;
+  }).join("");
+  const rangeStart = ordered.length ? page * pageSize + 1 : 0;
+  const rangeEnd = Math.min(ordered.length, page * pageSize + pageSize);
+  return `<section class="panel contract-print-panel"><div class="toolbar"><div><p class="eyebrow">Contrato</p><h2>Gerar contrato por reserva</h2></div><div class="filters contract-print-actions"><label class="field">Reserva<select id="contractReportSelect">${options}</select></label><button class="ghost-button" data-contract-page="prev" type="button" ${page <= 0 ? "disabled" : ""}>Mais recentes</button><button class="ghost-button" data-contract-page="next" type="button" ${page >= totalPages - 1 ? "disabled" : ""}>Mais antigas</button><button class="ghost-button" data-print-contract type="button" ${selected ? "" : "disabled"}>Imprimir</button><button class="primary-button" data-download-contract type="button" ${selected ? "" : "disabled"}>Baixar HTML</button></div></div><p class="muted block-help contract-page-help">Exibindo reservas ${rangeStart} a ${rangeEnd} de ${ordered.length}, das mais recentes para as mais antigas.</p>${empty(selected ? "Reserva selecionada. Use Imprimir ou Baixar HTML para gerar o contrato." : "Selecione uma reserva para gerar o contrato.")}</section>`;
+}
+
+function standaloneContractHtml(contract) {
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${escapeHtml(contractFileName(contract).replace(/-/g, " "))}</title><style>body{font-family:Arial,sans-serif;line-height:1.45;color:#111;margin:32px}.contract-document{max-width:820px;margin:auto}.contract-document h2{text-align:center;font-size:18px}.contract-document h3{text-align:center;font-size:15px}.contract-document h4{margin-top:18px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;margin-top:56px}.signature-grid span{border-top:1px solid #111;text-align:center;padding-top:8px}@media print{body{margin:18mm}}</style></head><body>${contractDocumentHtml(contract)}</body></html>`;
+}
+
+function downloadSelectedContract() {
+  const contract = state.contracts.find((item) => item.id === state.settings.contractReportId);
+  if (!contract) return toast("Selecione uma reserva.");
+  download(contractFileName(contract), standaloneContractHtml(contract), "text/html;charset=utf-8");
+}
+
+function printSelectedContract() {
+  const contract = state.contracts.find((item) => item.id === state.settings.contractReportId);
+  if (!contract) return toast("Selecione uma reserva.");
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return toast("Nao foi possivel abrir a janela de impressao.");
+  printWindow.document.write(standaloneContractHtml(contract));
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
 function reportsView() {
   const month = state.settings.reportMonth || state.settings.month || monthIso();
   const apartmentId = state.settings.reportApartment || "";
   const m = buildMetrics(month, apartmentId);
+  const showContracts = state.settings.showContractReport === "sim";
   const brokerRows = state.brokers.map((broker) => {
     const contracts = m.contracts.filter((contract) => contract.brokerId === broker.id);
-    const total = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+    const total = contracts.reduce((sum, contract) => sum + monthlyContractRevenue(contract, month) * (contractBrokerPercent(contract) / 100), 0);
     return [escapeHtml(broker.name), contracts.length, money(total)];
   }).filter((row) => row[1]);
-  const owners = ownerSummaryRows(m);
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
-    <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${Math.round(m.occupancy * 100)}% ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
+  const owners = ownerSummaryRows(m, month);
+  const contractReport = showContracts ? `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map((contract) => contractRow(contract, month))) : empty("Nenhum contrato no periodo.")}</section>` : "";
+  return contractReportPanel() + `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
+    <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${percent(m.occupancy)} ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
+    ${occupancyReportPanel(month, apartmentId)}
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Proprietarios</p><h2>Resultado por proprietario</h2></div></div>${owners.length ? table(["Proprietario", "Apartamentos", "Receita", "Comissoes", "Despesas", "Resultado"], owners.map((row) => [escapeHtml(row.owner), escapeHtml([...row.apartments].join(", ") || "-"), money(row.revenue), money(row.commission), money(row.expenses), money(row.net)])) : empty("Nenhum resultado por proprietario no periodo.")}</section>
     <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes por corretor</h2></div></div>${brokerRows.length ? table(["Corretor", "Contratos", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas do mes</h2></div></div>${m.expenses.length ? table(["Data", "Apartamento", "Proprietario", "Categoria", "Valor"], m.expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(apt ? apartmentOwnerName(apt) : "Despesa geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map(contractRow)) : empty("Nenhum contrato no periodo.")}</section>`;
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Opcional</p><h2>Relatorio de contratos no mes</h2></div><button class="ghost-button" data-toggle-contract-report type="button">${showContracts ? "Ocultar relatorio" : "Gerar relatorio"}</button></div>${showContracts ? "" : empty("O relatorio de contratos fica oculto. Clique em Gerar relatorio para exibir.")}</section>
+    ${contractReport}`;
+}
+
+function occupancyReportPanel(month, apartmentId = "") {
+  const { year, monthIndex } = monthRange(month);
+  const months = [];
+  for (let item = 1; item <= monthIndex; item += 1) months.push(`${year}-${String(item).padStart(2, "0")}`);
+  const activeApartments = state.apartments.filter((apt) => apt.status !== "inativo");
+  const selectedApartments = apartmentId ? activeApartments.filter((apt) => apt.id === apartmentId) : activeApartments;
+  const monthly = buildMetrics(month, apartmentId);
+  const accumulatedData = occupancyAccumulated(months, apartmentId);
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const yearRows = months.map((item) => ({ month: item, metrics: buildMetrics(item, apartmentId) }));
+  const chart = yearRows.map((row) => {
+    const value = Math.max(0, Math.min(1, row.metrics.occupancy));
+    const label = monthNames[monthRange(row.month).monthIndex - 1];
+    return `<div class="occupancy-bar-row"><span>${label}</span><div class="occupancy-track"><i style="width:${Math.round(value * 100)}%"></i></div><strong>${percent(value)}</strong></div>`;
+  }).join("");
+  const detailRows = selectedApartments.map((apt) => {
+    const aptMonth = buildMetrics(month, apt.id);
+    const aptAccumulated = occupancyAccumulated(months, apt.id);
+    return [escapeHtml(apt.name), percent(aptMonth.occupancy), `${aptMonth.occupied} diaria(s)`, percent(aptAccumulated.rate), `${aptAccumulated.occupied} diaria(s)`];
+  });
+  if (!apartmentId && detailRows.length) {
+    detailRows.push(["<strong>Media dos imoveis</strong>", `<strong>${percent(monthly.occupancy)}</strong>`, `<strong>${monthly.occupied} diaria(s)</strong>`, `<strong>${percent(accumulatedData.rate)}</strong>`, `<strong>${accumulatedData.occupied} diaria(s)</strong>`]);
+  }
+  const detail = detailRows.length ? table(["Imovel", "Ocupacao mes", "Diarias mes", "Acumulado ano", "Diarias ano"], detailRows) : empty("Nenhum imovel ativo para calcular ocupacao.");
+  return `<section class="panel occupancy-report"><div class="toolbar"><div><p class="eyebrow">Ocupacao</p><h2>Taxa de ocupacao</h2></div></div><div class="grid stats">${metric("Ocupacao mes", percent(monthly.occupancy), `${monthly.occupied} diaria(s) ocupada(s)`, "info")}${metric("Acumulado ano", percent(accumulatedData.rate), `${accumulatedData.occupied} diaria(s) ate ${String(monthIndex).padStart(2, "0")}/${year}`, "ok")}</div><div class="occupancy-chart">${chart || empty("Sem dados de ocupacao no periodo.")}</div><div class="occupancy-detail">${detail}</div></section>`;
+}
+
+function occupancyAccumulated(months, apartmentId = "") {
+  const rows = months.map((item) => ({ month: item, metrics: buildMetrics(item, apartmentId) }));
+  const occupied = rows.reduce((sum, row) => sum + row.metrics.occupied, 0);
+  const available = rows.reduce((sum, row) => {
+    const range = monthRange(row.month);
+    const apartmentCount = apartmentId ? 1 : Math.max(1, state.apartments.filter((apt) => apt.status !== "inativo").length);
+    return sum + range.end.getUTCDate() * apartmentCount;
+  }, 0);
+  return { occupied, available, rate: available ? occupied / available : 0 };
+}
+
+function institutionalView() {
+  return `<div class="institutional-page">
+    <section class="panel institutional-hero">
+      <div><p class="eyebrow">Informacoes institucionais</p><h2>Sobre, suporte, privacidade e LGPD</h2><p>Orientacoes sobre o sistema de Administracao de Locacoes, o tratamento de dados e as boas praticas de atendimento e seguranca.</p></div>
+      <div class="institutional-version"><span>Versao instalada</span><strong>${escapeHtml(APP_VERSION_LABEL)}</strong><small>Politica atualizada em 10/07/2026</small></div>
+    </section>
+    <div class="institutional-grid">
+      <article class="panel institutional-card">
+        <span class="institutional-number">01</span><h2>Sobre o sistema</h2>
+        <p>Este aplicativo apoia a administracao de locacoes por temporada, reunindo apartamentos, hospedes, corretores, reservas, contratos, despesas, calendario, relatorios e copias de seguranca.</p>
+        <dl class="institutional-details"><div><dt>Responsavel funcional</dt><dd>Administracao responsavel pelas locacoes</dd></div><div><dt>Modalidade</dt><dd>Aplicativo Web Progressivo (PWA)</dd></div><div><dt>Finalidade</dt><dd>Controle operacional, contratual e financeiro das locacoes</dd></div></dl>
+        <p class="institutional-note">A pagina nao divulga nome empresarial, CNPJ ou dados pessoais do programador.</p>
+      </article>
+      <article class="panel institutional-card">
+        <span class="institutional-number">02</span><h2>Suporte</h2>
+        <p>Em caso de duvida, erro, indisponibilidade ou necessidade de correcao, procure a administracao que forneceu seu acesso ao aplicativo.</p>
+        <ol class="institutional-list"><li>Informe a tela e a operacao realizada.</li><li>Descreva o resultado esperado e o que ocorreu.</li><li>Anexe captura somente quando necessario, ocultando dados de terceiros.</li><li>Informe a versao exibida nesta pagina.</li></ol>
+        <p class="institutional-note">Nunca envie senha, chave do Supabase, token de acesso ou backup completo por mensagem.</p>
+      </article>
+      <article class="panel institutional-card">
+        <span class="institutional-number">03</span><h2>Privacidade</h2>
+        <p>O sistema trata dados necessarios a gestao das reservas, hospedagens e atividades administrativas relacionadas.</p>
+        <h3>Dados tratados</h3><ul class="institutional-list"><li>identificacao e contato de hospedes, clientes e usuarios autorizados;</li><li>dados de apartamentos, reservas, estadias e contratos;</li><li>valores, pagamentos, comissoes, despesas e observacoes operacionais;</li><li>configuracoes, backups e registros necessarios a sincronizacao.</li></ul>
+        <h3>Armazenamento</h3><p>Os dados podem permanecer no navegador para funcionamento local e no Supabase para autenticacao, sincronizacao e copia remota. O acesso deve ser limitado a usuarios autorizados e nao ha finalidade de venda de dados pessoais.</p>
+      </article>
+      <article class="panel institutional-card">
+        <span class="institutional-number">04</span><h2>LGPD e direitos do titular</h2>
+        <p>A administracao responsavel pelas locacoes deve receber e avaliar as solicitacoes dos titulares dos dados mantidos no aplicativo.</p>
+        <p>Conforme aplicavel, o titular pode solicitar:</p><ul class="institutional-list"><li>confirmacao e acesso aos dados;</li><li>correcao de informacoes incompletas ou desatualizadas;</li><li>informacoes sobre uso e compartilhamento;</li><li>anonimizacao, bloqueio ou eliminacao quando cabivel;</li><li>revogacao de consentimento, quando essa for a base utilizada.</li></ul>
+        <p>Para proteger os dados, a identidade do solicitante pode ser confirmada antes do atendimento. A conservacao deve respeitar obrigacoes contratuais, fiscais, legais e a necessidade de defesa de direitos.</p>
+      </article>
+    </div>
+    <section class="panel institutional-footer"><strong>Compromisso de seguranca</strong><p>Use credenciais individuais, mantenha o dispositivo protegido, encerre a sessao ao terminar e comunique imediatamente qualquer acesso indevido ou suspeita de incidente.</p></section>
+  </div>`;
 }
 
 function settingsView() {
@@ -527,24 +976,25 @@ function fieldsFor(collection, record = {}) {
   const aptOptions = () => state.apartments.map((apt) => [apt.id, apt.name]);
   const clientOptions = () => state.clients.map((client) => [client.id, client.name]);
   const brokerOptions = () => [["", "Sem corretor"], ...state.brokers.map((broker) => [broker.id, broker.name])];
+  const reservationTotal = record.reservationTotal ?? (record.dailyRate !== undefined ? contractTotals(record).total : 0);
   const fields = {
     apartments: [
-      ["name", "Nome do apartamento", "text", null, true], ["address", "Endereco", "text"], ["type", "Tipo", "select", [["Apartamento", "Apartamento"], ["Studio", "Studio"], ["Casa", "Casa"], ["Cobertura", "Cobertura"], ["Flat", "Flat"]]], ["status", "Status", "select", [["ativo", "Ativo"], ["manutencao", "Manutencao"], ["inativo", "Inativo"]]], ["ownerName", "Proprietario", "text", null, true], ["ownerDocument", "CPF/CNPJ do proprietario", "text"], ["ownerPhone", "Telefone do proprietario", "text"], ["ownerEmail", "E-mail do proprietario", "email"], ["ownerShare", "Participacao do proprietario (%)", "number", null, false, 100], ["rooms", "Quartos", "number"], ["maxGuests", "Capacidade", "number"], ["baseDaily", "Diaria base", "number"], ["cleaningFee", "Taxa limpeza", "number"], ["notes", "Observacoes", "textarea"]
+      ["name", "Nome do imovel", "text", null, true], ["colorName", "Cor do imovel", "text"], ["unitNumber", "Numero/apto", "text"], ["block", "Bloco", "text"], ["address", "Endereco do imovel para contrato", "textarea"], ["type", "Tipo", "select", [["Apartamento", "Apartamento"], ["Studio", "Studio"], ["Casa", "Casa"], ["Cobertura", "Cobertura"], ["Flat", "Flat"]]], ["status", "Status", "select", [["ativo", "Ativo"], ["manutencao", "Manutencao"], ["inativo", "Inativo"]]], ["ownerName", "Locador/proprietario", "text", null, true], ["ownerDocument", "CPF/CNPJ do locador", "text"], ["ownerNationality", "Nacionalidade do locador", "text"], ["ownerProfession", "Profissao do locador", "text"], ["ownerPhone", "Telefone do locador", "text"], ["ownerEmail", "E-mail do locador", "email"], ["ownerAddress", "Endereco do locador", "textarea"], ["ownerBankHolder", "Titular da conta/Pix", "text"], ["ownerPixKey", "Chave Pix/CPF", "text"], ["ownerBankName", "Banco", "text"], ["ownerShare", "Participacao do proprietario (%)", "number", null, false, 100], ["rooms", "Quartos", "number"], ["maxGuests", "Capacidade", "number"], ["baseDaily", "Diaria base", "number"], ["cleaningFee", "Taxa limpeza", "number"], ["defaultSecurityDeposit", "Caucao padrao", "number", null, false, 300], ["contractNotes", "Regras/observacoes fixas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     clients: [
-      ["name", "Nome", "text", null, true], ["document", "CPF/documento", "text"], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["origin", "Origem", "select", [["Indicado", "Indicado"], ["Airbnb", "Airbnb"], ["Booking", "Booking"], ["Instagram", "Instagram"], ["Direto", "Direto"], ["Outro", "Outro"]]], ["notes", "Observacoes", "textarea"]
+      ["name", "Nome", "text", null, true], ["document", "CPF/CNPJ", "text"], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["address", "Endereco completo para contrato", "textarea"], ["origin", "Origem", "select", [["Indicado", "Indicado"], ["Airbnb", "Airbnb"], ["Booking", "Booking"], ["Instagram", "Instagram"], ["Direto", "Direto"], ["Outro", "Outro"]]], ["notes", "Observacoes", "textarea"]
     ],
     brokers: [
       ["name", "Nome", "text", null, true], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["commissionDefault", "Comissao padrao (%)", "number"], ["status", "Status", "select", [["ativo", "Ativo"], ["inativo", "Inativo"]]], ["notes", "Observacoes", "textarea"]
     ],
     contracts: [
-      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, true], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions], ["brokerPercent", "Comissao corretor (%)", "number", null, false, 10], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]]], ["dailyRate", "Diaria negociada", "number", null, false, 0], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["notes", "Observacoes", "textarea"]
+      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "sim"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]]], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 300], ["firstPayment", "Entrada/sinal", "number", null, false, 0], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     expenses: [
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
     ]
   }[collection] || [];
-  return fields.map(([key, label, type, options, required, fallback]) => ({ key, label, type, options, required, value: record[key] ?? fallback ?? "" }));
+  return fields.map(([key, label, type, options, required, fallback, readonly]) => ({ key, label, type, options, required, readonly, value: record[key] ?? fallback ?? "" }));
 }
 
 function openForm(collection, id = null) {
@@ -556,18 +1006,66 @@ function openForm(collection, id = null) {
   dialog.dataset.id = id || "";
   document.querySelector("#dialogTitle").textContent = id ? `Editar ${label}` : `Novo ${label}`;
   fields.innerHTML = fieldsFor(collection, record).map(fieldHtml).join("");
+  bindFormEnhancements(collection);
   dialog.showModal();
 }
 
+function bindFormEnhancements(collection) {
+  document.querySelectorAll("[data-money-field]").forEach((input) => {
+    input.addEventListener("blur", () => input.value = brazilianValue(input.value));
+  });
+  if (collection === "contracts") {
+    const watched = ["checkIn", "checkOut", "reservationTotal", "cleaningFee", "discount"]
+      .map((id) => document.querySelector(`#${id}`)).filter(Boolean);
+    const updateDailyRate = () => {
+      const stayNights = nights(document.querySelector("#checkIn")?.value, document.querySelector("#checkOut")?.value);
+      const total = toNumber(document.querySelector("#reservationTotal")?.value);
+      const cleaning = toNumber(document.querySelector("#cleaningFee")?.value);
+      const discount = toNumber(document.querySelector("#discount")?.value);
+      const dailyRate = document.querySelector("#dailyRate");
+      if (dailyRate) dailyRate.value = brazilianValue(stayNights > 0 ? Math.max(0, (total - cleaning + discount) / stayNights) : 0);
+    };
+    watched.forEach((input) => input.addEventListener("input", updateDailyRate));
+    updateDailyRate();
+    return;
+  }
+  if (collection !== "clients") return;
+  const documentInput = document.querySelector("#document");
+  const nameInput = document.querySelector("#name");
+  if (!documentInput) return;
+  documentInput.addEventListener("blur", async () => {
+    const message = validateDocumentValue(documentInput.value);
+    documentInput.setCustomValidity(message);
+    if (message) {
+      toast(message);
+      return;
+    }
+    const digits = onlyDigits(documentInput.value);
+    if (digits.length !== 14 || !nameInput) return;
+    try {
+      const name = await lookupCnpjName(digits);
+      if (name && !nameInput.value.trim()) {
+        nameInput.value = name;
+        toast("Nome preenchido pelo CNPJ.");
+      }
+    } catch (error) {
+      toast(error.message || "Nao foi possivel consultar o CNPJ.");
+    }
+  });
+}
+
 function fieldHtml(field) {
-  const full = field.type === "textarea" || ["address", "notes", "description"].includes(field.key) ? " full" : "";
+  const full = field.type === "textarea" || ["address", "ownerAddress", "notes", "description", "contractNotes", "paymentInstructions"].includes(field.key) ? " full" : "";
   const required = field.required ? "required" : "";
   if (field.type === "select") {
     const options = typeof field.options === "function" ? field.options() : field.options;
     return `<div class="field${full}"><label for="${field.key}">${field.label}</label><select id="${field.key}" name="${field.key}" ${required}>${options.map(([value, label]) => `<option value="${escapeHtml(value)}" ${String(value) === String(field.value) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></div>`;
   }
   if (field.type === "textarea") return `<div class="field${full}"><label for="${field.key}">${field.label}</label><textarea id="${field.key}" name="${field.key}">${escapeHtml(field.value)}</textarea></div>`;
-  return `<div class="field${full}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${field.type}" value="${escapeHtml(field.value)}" ${field.type === "number" ? "step='0.01'" : ""} ${required} /></div>`;
+  const isMoney = moneyFieldKeys.has(field.key);
+  const inputType = isMoney ? "text" : field.type;
+  const value = isMoney ? brazilianValue(field.value) : field.value;
+  return `<div class="field${full}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${inputType}" value="${escapeHtml(value)}" ${isMoney ? "inputmode='decimal' data-money-field" : field.type === "number" ? "step='0.01'" : ""} ${field.readonly ? "readonly" : ""} ${required} /></div>`;
 }
 
 function submitForm(event) {
@@ -584,14 +1082,22 @@ function submitForm(event) {
   const record = Object.fromEntries(new FormData(event.currentTarget).entries());
   fields.filter((field) => field.type === "number").forEach((field) => record[field.key] = toNumber(record[field.key]));
 
+  if (collection === "clients") {
+    const documentError = validateDocumentValue(record.document);
+    if (documentError) return toast(documentError);
+  }
+
   if (collection === "contracts") {
+    const stayNights = nights(record.checkIn, record.checkOut);
+    record.dailyRate = stayNights > 0 ? Math.max(0, (toNumber(record.reservationTotal) - toNumber(record.cleaningFee) + toNumber(record.discount)) / stayNights) : 0;
+    delete record.brokerPercent;
     const error = validateContract({ ...record, id: id || "draft" });
     if (error) return toast(error);
   }
 
   const normalizedRecord = collection === "apartments" ? normalizeApartment(record) : record;
   if (id) state[collection] = state[collection].map((item) => item.id === id ? { ...item, ...normalizedRecord } : item);
-  else state[collection].push({ id: uid(), ...normalizedRecord });
+  else state[collection].push({ id: uid(), createdAt: new Date().toISOString(), ...normalizedRecord });
   saveState("form_save");
   dialog.close();
   render();
@@ -599,8 +1105,10 @@ function submitForm(event) {
 }
 
 function validateContract(contract) {
-  if (!state.clients.length || !state.apartments.length) return "Cadastre ao menos um cliente e um apartamento.";
+  if (!state.apartments.length) return "Cadastre ao menos um apartamento.";
+  if ((contract.hasFormalContract || "sim") !== "nao" && (!state.clients.length || !contract.clientId)) return "Selecione um cliente para gerar contrato formal.";
   if (parseDate(contract.checkOut) <= parseDate(contract.checkIn)) return "A saida precisa ser posterior a entrada.";
+  if (toNumber(contract.reservationTotal) < Math.max(0, toNumber(contract.cleaningFee) - toNumber(contract.discount))) return "O valor total precisa cobrir a taxa de limpeza, considerando o desconto.";
   const apartment = getById("apartments", contract.apartmentId);
   const totalGuests = toNumber(contract.guests) + toNumber(contract.children);
   if (apartment?.maxGuests && totalGuests > toNumber(apartment.maxGuests)) return "Hospedes acima da capacidade do apartamento.";
@@ -628,13 +1136,127 @@ function saveSnapshot() {
 }
 
 function download(filename, content, type) {
-  const blob = new Blob([content], { type });
+  downloadBlob(filename, new Blob([content], { type }));
+}
+
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+async function exportCalendarForWhatsapp() {
+  const month = state.settings.month || monthIso();
+  const apartmentId = state.settings.calendarApartment || "";
+  const image = calendarWhatsappImage(month, apartmentId);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}"><foreignObject width="100%" height="100%">${image.html}</foreignObject></svg>`;
+  try {
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const picture = new Image();
+    await new Promise((resolve, reject) => {
+      picture.onload = resolve;
+      picture.onerror = reject;
+      picture.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    const scale = 2;
+    canvas.width = image.width * scale;
+    canvas.height = image.height * scale;
+    const context = canvas.getContext("2d");
+    context.scale(scale, scale);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, image.width, image.height);
+    context.drawImage(picture, 0, 0);
+    URL.revokeObjectURL(url);
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.95));
+    if (!pngBlob) throw new Error("Nao foi possivel gerar PNG.");
+    downloadBlob(`calendario-whatsapp-${month}.png`, pngBlob);
+    try {
+      await navigator.clipboard.writeText(image.summary);
+      toast("Imagem do calendario gerada e resumo copiado.");
+    } catch {
+      toast("Imagem do calendario gerada.");
+    }
+  } catch {
+    download(`calendario-whatsapp-${month}.svg`, svg, "image/svg+xml;charset=utf-8");
+    toast("PNG indisponivel neste navegador. Gerei o calendario em SVG.");
+  }
+}
+
+function calendarWhatsappImage(month, apartmentId = "") {
+  const { start, end } = monthRange(month);
+  const monthLabel = month.split("-").reverse().join("/");
+  const scope = apartmentId ? getById("apartments", apartmentId)?.name || "Apartamento" : "Todos os apartamentos";
+  const cells = [];
+  for (let i = 0; i < start.getUTCDay(); i++) cells.push(null);
+  for (let day = 1; day <= end.getUTCDate(); day++) cells.push(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), day)));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const rows = Math.max(5, cells.length / 7);
+  const summary = calendarWhatsappSummary(month, apartmentId);
+  const summaryLines = summary.split("\n");
+  const width = 1240;
+  const height = 174 + rows * 128 + 64 + Math.max(92, summaryLines.length * 30) + 38;
+  const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => `<div class="export-weekday">${day}</div>`).join("");
+  const days = cells.map((date) => {
+    if (!date) return `<div class="export-day muted-day"></div>`;
+    const events = calendarEventsForDate(date, apartmentId);
+    return `<div class="export-day"><strong>${date.getUTCDate()}</strong>${events.map(calendarExportEventHtml).join("")}</div>`;
+  }).join("");
+  const summaryHtml = summaryLines.map((line, index) => `<div class="${index ? "summary-line" : "summary-title"}">${escapeHtml(line)}</div>`).join("");
+  const html = `<div xmlns="http://www.w3.org/1999/xhtml" class="calendar-export-image"><style>
+    .calendar-export-image{box-sizing:border-box;width:${width}px;height:${height}px;padding:34px;background:#f8fafc;color:#0f172a;font-family:Arial,'Segoe UI',sans-serif}
+    .export-header{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:24px}
+    .export-kicker{margin:0 0 7px;color:#0f766e;font-size:18px;font-weight:900;text-transform:uppercase;white-space:nowrap}
+    .export-title{margin:0;font-size:42px;line-height:1;font-weight:900;white-space:nowrap}
+    .export-scope{padding:12px 16px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;font-size:20px;font-weight:800;white-space:nowrap}
+    .export-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+    .export-weekday{padding:10px 6px;border-radius:10px;background:#0f172a;color:#fff;text-align:center;font-size:15px;font-weight:900;text-transform:uppercase;white-space:nowrap}
+    .export-day{min-height:112px;padding:9px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;overflow:hidden}
+    .muted-day{background:#e2e8f0}
+    .export-day>strong{display:block;margin-bottom:6px;font-size:18px;font-weight:900;white-space:nowrap}
+    .export-event{display:grid;gap:2px;margin-top:5px;padding:7px 8px;border-left:6px solid var(--event-color);border-radius:8px;background:var(--event-bg);font-size:13px;line-height:1.1;font-weight:800;overflow:hidden}
+    .export-event.checkout{background:#fff7ed;border-left-style:dashed;color:#9a3412}
+    .export-event span,.export-event small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .export-summary{margin-top:28px;padding:18px 20px;border:1px solid #cbd5e1;border-radius:14px;background:#fff}
+    .summary-title{margin-bottom:10px;color:#0f766e;font-size:20px;font-weight:900;white-space:nowrap}
+    .summary-line{padding:5px 0;border-top:1px solid #e2e8f0;font-size:17px;font-weight:700;white-space:nowrap}
+  </style><div class="export-header"><div><p class="export-kicker">Ocupacao mensal</p><h1 class="export-title">Calendario ${escapeHtml(monthLabel)}</h1></div><div class="export-scope">${escapeHtml(scope)}</div></div><div class="export-grid">${weekdays}${days}</div><div class="export-summary">${summaryHtml}</div></div>`;
+  return { html, width, height, summary };
+}
+
+function calendarExportEventHtml(event) {
+  const contract = event.contract || event;
+  const apt = getById("apartments", contract.apartmentId);
+  const client = getById("clients", contract.clientId);
+  const aptName = apt?.name || apt?.unitNumber || "Apto";
+  const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
+  const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
+  const isCheckout = event.type === "checkout";
+  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small></div>`;
+}
+
+function hexToRgba(hex, alpha) {
+  const clean = String(hex || "").replace("#", "");
+  const expanded = clean.length === 3 ? clean.split("").map((char) => char + char).join("") : clean;
+  const number = /^[0-9a-f]{6}$/i.test(expanded) ? parseInt(expanded, 16) : 0x2563eb;
+  return `rgba(${(number >> 16) & 255}, ${(number >> 8) & 255}, ${number & 255}, ${alpha})`;
+}
+
+function calendarWhatsappSummary(month, apartmentId = "") {
+  const contracts = getMonthContracts(month, apartmentId).sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)));
+  const lines = [`Calendario de ocupacao ${month.split("-").reverse().join("/")}`];
+  if (apartmentId) lines.push(`Apartamento: ${getById("apartments", apartmentId)?.name || "-"}`);
+  contracts.forEach((contract) => {
+    const client = getById("clients", contract.clientId);
+    const apt = getById("apartments", contract.apartmentId);
+    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)`);
+  });
+  if (lines.length === 1 || (apartmentId && lines.length === 2)) lines.push("Sem reservas no periodo.");
+  return lines.join("\n");
 }
 
 function importBackup(file) {
@@ -653,6 +1275,21 @@ function importBackup(file) {
 }
 
 function bindViewEvents() {
+  document.querySelector("#contractFilterStart")?.addEventListener("change", (event) => {
+    state.settings.contractFilterStart = event.target.value;
+    saveState("contract_filter_start");
+    render();
+  });
+  document.querySelector("#contractFilterEnd")?.addEventListener("change", (event) => {
+    state.settings.contractFilterEnd = event.target.value;
+    saveState("contract_filter_end");
+    render();
+  });
+  document.querySelector("#contractFilterApartment")?.addEventListener("change", (event) => {
+    state.settings.contractFilterApartment = event.target.value;
+    saveState("contract_filter_apartment");
+    render();
+  });
   document.querySelector("#dashboardMonth")?.addEventListener("change", (event) => {
     state.settings.month = event.target.value;
     saveState("month_change");
@@ -663,6 +1300,8 @@ function bindViewEvents() {
     saveState("calendar_month_change");
     render();
   });
+  document.querySelector("#calendarMonthSelect")?.addEventListener("change", updateCalendarMonthFromSelects);
+  document.querySelector("#calendarYearSelect")?.addEventListener("change", updateCalendarMonthFromSelects);
   document.querySelector("#calendarApartment")?.addEventListener("change", (event) => {
     state.settings.calendarApartment = event.target.value;
     saveState("calendar_apartment_change");
@@ -678,6 +1317,25 @@ function bindViewEvents() {
     saveState("report_apartment_change");
     render();
   });
+  document.querySelector("#contractReportSelect")?.addEventListener("change", (event) => {
+    state.settings.contractReportId = event.target.value;
+    saveState("contract_report_change");
+    render();
+  });
+  document.querySelector("[data-calendar-export]")?.addEventListener("click", exportCalendarForWhatsapp);
+  document.querySelector("[data-toggle-contract-report]")?.addEventListener("click", () => {
+    state.settings.showContractReport = state.settings.showContractReport === "sim" ? "nao" : "sim";
+    saveState("toggle_contract_report");
+    render();
+  });
+}
+
+function updateCalendarMonthFromSelects() {
+  const month = document.querySelector("#calendarMonthSelect")?.value || monthIso().slice(5, 7);
+  const year = document.querySelector("#calendarYearSelect")?.value || monthIso().slice(0, 4);
+  state.settings.month = `${year}-${month}`;
+  saveState("calendar_month_select_change");
+  render();
 }
 
 function toast(text) {
@@ -764,9 +1422,11 @@ function updateTopbarAccess() {
 
   const version = document.querySelector("#topVersionLabel");
   if (version) version.textContent = APP_VERSION_LABEL;
+  const accessDate = document.querySelector("#topAccessLabel");
+  if (accessDate) accessDate.textContent = APP_CHANGE_DATE_LABEL;
 
   const access = document.querySelector("#topAccessLabel");
-  if (access) access.textContent = location.host || "Acesso local";
+  if (access && !access.textContent) access.textContent = location.host || "Acesso local";
 }
 
 function getAccessUrl() {
@@ -776,7 +1436,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.15-auto-20260703-2347");
+  url.searchParams.set("v", "2.1.28-auto-20260715-1224");
   return url.toString();
 }
 
@@ -808,7 +1468,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.15-auto-20260703-2347");
+  location.replace("login.html?v=2.1.28-auto-20260715-1224");
 }
 
 async function handleSyncAction(action) {
@@ -850,6 +1510,15 @@ async function handleSyncAction(action) {
 }
 
 document.addEventListener("click", (event) => {
+  const clearReservationFiltersBtn = event.target.closest("[data-clear-reservation-filters]");
+  if (clearReservationFiltersBtn) {
+    state.settings.contractFilterStart = "";
+    state.settings.contractFilterEnd = "";
+    state.settings.contractFilterApartment = "";
+    saveState("contract_filters_clear");
+    render();
+    return;
+  }
   const routeBtn = event.target.closest("[data-route]");
   if (routeBtn) setRoute(routeBtn.dataset.route);
 
@@ -890,6 +1559,21 @@ document.addEventListener("click", (event) => {
     }
   }
 
+  const printContractBtn = event.target.closest("[data-print-contract]");
+  if (printContractBtn) printSelectedContract();
+
+  const downloadContractBtn = event.target.closest("[data-download-contract]");
+  if (downloadContractBtn) downloadSelectedContract();
+
+  const contractPageBtn = event.target.closest("[data-contract-page]");
+  if (contractPageBtn) {
+    const current = Math.max(0, toNumber(state.settings.contractReportPage));
+    state.settings.contractReportPage = Math.max(0, current + (contractPageBtn.dataset.contractPage === "next" ? 1 : -1));
+    state.settings.contractReportId = "";
+    saveState("contract_report_page");
+    render();
+  }
+
   const syncBtn = event.target.closest("[data-sync]");
   if (syncBtn) handleSyncAction(syncBtn.dataset.sync);
 });
@@ -911,7 +1595,7 @@ document.querySelector("#importFile").addEventListener("change", (event) => {
 
 window.addEventListener("DOMContentLoaded", async () => {
   const version = document.querySelector("#versionLabel");
-  if (version) version.textContent = APP_VERSION_LABEL;
+  if (version) version.textContent = APP_VERSION_LABEL + " - " + APP_CHANGE_DATE_LABEL;
   updateTopbarAccess();
 
   if (!window.LocacoesSupabaseSync) {
@@ -954,6 +1638,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
+
 
 
 
