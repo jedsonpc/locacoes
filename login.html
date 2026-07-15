@@ -18,7 +18,7 @@
         padding: 14px;
         background:
           linear-gradient(90deg, rgba(15, 23, 42, .82), rgba(15, 118, 110, .34)),
-          url("cupe-beach-living.jpg") center / cover no-repeat;
+          url("cupe-login-recorte-real.jpg") center / cover no-repeat;
         color: #0f172a;
         font-family: "Segoe UI", Arial, sans-serif;
       }
@@ -137,6 +137,12 @@
         h1 { font-size: 19px; }
         .hint { display: none; }
       }
+      @media (max-width: 760px) {
+        body {
+          place-items: center;
+          padding: 14px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -161,8 +167,8 @@
     </form>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=2.1.28-auto-20260715-1224"></script>
-    <script src="supabase-sync.js?v=2.1.28-auto-20260715-1224"></script>
+    <script src="supabase-config.js?v=2.1.29-auto-20260715-1303"></script>
+    <script src="supabase-sync.js?v=2.1.29-auto-20260715-1303"></script>
     <script>
       const offlineUserKey = "app-locacao-last-online-user-v1";
 
@@ -250,6 +256,7 @@
     </script>
   </body>
 </html>
+
 
 
 

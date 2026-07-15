@@ -7,7 +7,7 @@ $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
 $iconFile = Join-Path $installApp "cupe-beach-living.ico"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
-$appVersion = "2.1.28-portaria-20260715"
+$appVersion = "2.1.29-recorte-real-20260715"
 $port = 8787
 
 if (!(Test-Path (Join-Path $packageRoot "index.html"))) {

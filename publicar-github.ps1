@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
-$baseVersion = "2.1.28"
+$baseVersion = "2.1.29"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
@@ -87,6 +87,7 @@ $itemsToPublish = @(
   "cupe-beach-living.ico",
   "logo-cupe-beach-living.png",
   "cupe-beach-living.jpg",
+  "cupe-login-recorte-real.jpg",
   "LEIA-ME.txt",
   "COMO-AUTORIZAR-GIT.txt",
   "PUBLICAR-GITHUB.bat",
