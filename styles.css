@@ -628,33 +628,87 @@ h3 {
   background: var(--brand-2);
 }
 
+.annual-revenue-table {
+  max-width: 100%;
+  overflow: visible;
+}
+
 .annual-revenue-table table {
-  min-width: 1500px;
-  table-layout: auto;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .annual-revenue-table th,
 .annual-revenue-table td {
-  min-width: 92px;
-  padding: 10px 8px;
+  min-width: 0;
+  padding: 8px 2px;
+  overflow: hidden;
+  font-size: clamp(0.5rem, 0.66vw, 0.7rem);
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .annual-revenue-table th:first-child,
 .annual-revenue-table td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  min-width: 170px;
-  background: var(--panel);
-}
-
-.annual-revenue-table thead th:first-child {
-  z-index: 2;
+  width: 13%;
+  padding-left: 5px;
+  text-align: left;
 }
 
 .annual-total-row td {
   border-top: 2px solid var(--brand);
+  background: var(--panel-2);
+}
+
+.annual-mobile-list {
+  display: none;
+}
+
+.annual-mobile-broker {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.annual-mobile-broker > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.annual-mobile-broker > div span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.annual-mobile-months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.annual-mobile-months div {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.72rem;
+}
+
+.annual-mobile-months dt,
+.annual-mobile-months dd {
+  margin: 0;
+}
+
+.annual-mobile-broker.total {
+  border-color: var(--brand);
   background: var(--panel-2);
 }
 
@@ -1270,6 +1324,15 @@ th {
 }
 
 @media (max-width: 680px) {
+  .annual-revenue-table {
+    display: none;
+  }
+
+  .annual-mobile-list {
+    display: grid;
+    gap: 10px;
+  }
+
   .report-chart-grid {
     grid-template-columns: 1fr;
   }

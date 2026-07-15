@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.36-auto-20260715-1957";
+const APP_VERSION_LABEL = "v2.1.37-auto-20260715-2003";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -851,6 +851,7 @@ function printSelectedContract() {
 function reportsView() {
   const currentMonth = monthIso();
   const currentYear = new Date().getFullYear();
+  const annualYear = Number(state.settings.reportAnnualYear) || currentYear;
   const apartmentId = state.settings.reportApartment || "";
   const periodStart = state.settings.reportPeriodStart || `${currentMonth}-01`;
   const periodEnd = state.settings.reportPeriodEnd || `${currentMonth}-${String(monthRange(currentMonth).end.getUTCDate()).padStart(2, "0")}`;
@@ -888,7 +889,7 @@ function reportsView() {
     <div class="grid stats report-kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "periodo anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "periodo anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
     ${reportComparisonPanel(current, previous, previousStart, previousEnd)}
     ${reportEvolutionPanel(buckets)}
-    ${annualBrokerRevenuePanel(currentYear, apartmentId)}
+    ${annualBrokerRevenuePanel(annualYear, apartmentId)}
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2></div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
     <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>`;
 }
@@ -974,6 +975,8 @@ function reportBarChart(title, buckets, key, formatter) {
 
 function annualBrokerRevenuePanel(year, apartmentId = "") {
   const monthLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const availableYears = [...new Set([new Date().getFullYear(), Number(year), ...state.contracts.map((contract) => Number(String(contract.checkIn || "").slice(0, 4))).filter((item) => item >= 2000 && item <= 2100)])].sort((a, b) => b - a);
+  const yearFilter = `<label class="field compact-date-field">Ano<select id="reportAnnualYear">${availableYears.map((item) => `<option value="${item}" ${item === Number(year) ? "selected" : ""}>${item}</option>`).join("")}</select></label>`;
   const contracts = state.contracts.filter((contract) => contract.status !== "cancelada" && String(contract.checkIn || "").startsWith(`${year}-`) && contract.brokerId && (!apartmentId || contract.apartmentId === apartmentId));
   const brokerRows = [...state.brokers]
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
@@ -988,11 +991,20 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
     .filter((row) => row.total > 0);
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => brokerRows.reduce((sum, row) => sum + row.monthly[index], 0));
   const grandTotal = monthlyTotals.reduce((sum, value) => sum + value, 0);
-  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Ano corrente</p><h2>Faturamento mensal por corretor - ${year}</h2></div></div>${empty("Nenhuma locacao vinculada a corretor no ano corrente.")}</section>`;
+  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2></div><div class="filters">${yearFilter}</div></div>${empty("Nenhuma locacao vinculada a corretor no ano selecionado.")}</section>`;
   const header = ["Corretor", ...monthLabels, "Total"].map((label) => `<th>${label}</th>`).join("");
-  const rows = brokerRows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td>${row.monthly.map((value) => `<td>${money(value)}</td>`).join("")}<td><strong>${money(row.total)}</strong></td></tr>`).join("");
-  const totalRow = `<tr class="annual-total-row"><td><strong>Total</strong></td>${monthlyTotals.map((value) => `<td><strong>${money(value)}</strong></td>`).join("")}<td><strong>${money(grandTotal)}</strong></td></tr>`;
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Ano corrente</p><h2>Faturamento mensal por corretor - ${year}</h2></div></div><p class="muted block-help">Valores integrais das locacoes, agrupados pelo mes da entrada e pelo corretor vinculado.</p><div class="table-wrap annual-revenue-table"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div></section>`;
+  const rows = brokerRows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td>${row.monthly.map((value) => `<td title="${escapeHtml(money(value))}">${annualCompactValue(value)}</td>`).join("")}<td title="${escapeHtml(money(row.total))}"><strong>${annualCompactValue(row.total)}</strong></td></tr>`).join("");
+  const totalRow = `<tr class="annual-total-row"><td><strong>Total</strong></td>${monthlyTotals.map((value) => `<td title="${escapeHtml(money(value))}"><strong>${annualCompactValue(value)}</strong></td>`).join("")}<td title="${escapeHtml(money(grandTotal))}"><strong>${annualCompactValue(grandTotal)}</strong></td></tr>`;
+  const mobileRows = [...brokerRows, { name: "Total geral", monthly: monthlyTotals, total: grandTotal, totalRow: true }].map((row) => `<article class="annual-mobile-broker ${row.totalRow ? "total" : ""}"><div><strong>${escapeHtml(row.name)}</strong><span>Total: ${money(row.total)}</span></div><dl class="annual-mobile-months">${row.monthly.map((value, index) => `<div><dt>${monthLabels[index]}</dt><dd>${annualCompactValue(value)}</dd></div>`).join("")}</dl></article>`).join("");
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2></div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Valores em R$. Numeros maiores sao abreviados para o relatorio caber sem rolagem; o valor completo aparece ao posicionar o cursor.</p><div class="annual-revenue-table"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
+}
+
+function annualCompactValue(value) {
+  const number = toNumber(value);
+  const absolute = Math.abs(number);
+  if (absolute >= 1000000) return `${(number / 1000000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  if (absolute >= 100000) return `${(number / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;
+  return valueFmt.format(number);
 }
 
 function occupancyReportPanel(month, apartmentId = "") {
@@ -1593,6 +1605,11 @@ function bindViewEvents() {
     saveState("report_apartment_change");
     render();
   });
+  document.querySelector("#reportAnnualYear")?.addEventListener("change", (event) => {
+    state.settings.reportAnnualYear = event.target.value;
+    saveState("report_annual_year_change");
+    render();
+  });
   document.querySelector("#reportPeriodStart")?.addEventListener("change", (event) => {
     state.settings.reportPeriodStart = event.target.value;
     saveState("report_period_start_change");
@@ -1722,7 +1739,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.36-auto-20260715-1957");
+  url.searchParams.set("v", "2.1.37-auto-20260715-2003");
   return url.toString();
 }
 
@@ -1754,7 +1771,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.36-auto-20260715-1957");
+  location.replace("login.html?v=2.1.37-auto-20260715-2003");
 }
 
 async function handleSyncAction(action) {
@@ -1932,6 +1949,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
-$baseVersion = "2.1.36"
+$baseVersion = "2.1.37"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
