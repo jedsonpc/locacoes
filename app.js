@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.30-auto-20260715-1710";
+const APP_VERSION_LABEL = "v2.1.31-auto-20260715-1833";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -213,6 +213,7 @@ function getById(collection, id) {
 }
 
 function contractBrokerPercent(contract) {
+  if (contract?.commissionAlreadyDeducted === true || contract?.commissionAlreadyDeducted === "sim") return 0;
   if (!contract?.brokerId) return 0;
   const broker = getById("brokers", contract.brokerId);
   return toNumber(broker?.commissionDefault);
@@ -274,6 +275,7 @@ function normalizeContract(contract = {}) {
   const received = toNumber(contract.deposit);
   return {
     ...contract,
+    commissionAlreadyDeducted: contract.commissionAlreadyDeducted === true || contract.commissionAlreadyDeducted === "sim" ? "sim" : "nao",
     hasFormalContract: contract.hasFormalContract || "sim",
     checkInTime: contract.checkInTime || "14:00",
     checkOutTime: contract.checkOutTime || "11:00",
@@ -722,14 +724,24 @@ function calendarEventsForDate(date, apartmentId = "") {
   return [...bookings, ...checkouts];
 }
 
+function calendarBrokerLabel(contract, client) {
+  const clientName = normalizedText(client?.name);
+  const clientOrigin = normalizedText(client?.origin);
+  const shouldIdentifyBroker = clientName.includes("lancamento de registro") || clientName.includes("contato corretor") || clientOrigin.includes("corretor");
+  if (!shouldIdentifyBroker) return "";
+  return getById("brokers", contract?.brokerId)?.name || "";
+}
+
 function calendarEventHtml(event) {
   const contract = event.contract || event;
   const apt = getById("apartments", contract.apartmentId);
   const client = getById("clients", contract.clientId);
   const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
+  const brokerName = calendarBrokerLabel(contract, client);
   const aptName = apt?.name || apt?.unitNumber || "Apto";
   const isCheckout = event.type === "checkout";
-  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small></span>`;
+  const brokerLine = brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : "";
+  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small>${brokerLine}</span>`;
 }
 
 function shortName(name) {
@@ -839,6 +851,29 @@ function printSelectedContract() {
 function reportsView() {
   const month = state.settings.reportMonth || state.settings.month || monthIso();
   const apartmentId = state.settings.reportApartment || "";
+  const defaultPeriodStart = `${month}-01`;
+  const defaultPeriodEnd = `${month}-${String(monthRange(month).end.getUTCDate()).padStart(2, "0")}`;
+  const periodStart = state.settings.reportPeriodStart || defaultPeriodStart;
+  const periodEnd = state.settings.reportPeriodEnd || defaultPeriodEnd;
+  const periodContracts = [...state.contracts]
+    .filter((contract) => !periodStart || String(contract.checkOut || "") >= periodStart)
+    .filter((contract) => !periodEnd || String(contract.checkIn || "") <= periodEnd)
+    .sort((a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || "")));
+  const periodTotal = periodContracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
+  const periodCommission = periodContracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+  const periodRows = periodContracts.map((contract) => {
+    const totals = contractTotals(contract);
+    const broker = getById("brokers", contract.brokerId);
+    return [
+      `${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}`,
+      escapeHtml(getById("clients", contract.clientId)?.name || "-"),
+      escapeHtml(getById("apartments", contract.apartmentId)?.name || "-"),
+      escapeHtml(broker?.name || "Sem corretor"),
+      money(totals.total),
+      contract.commissionAlreadyDeducted === "sim" ? "Ja compensada" : money(totals.commission),
+      status(contract.status)
+    ];
+  });
   const m = buildMetrics(month, apartmentId);
   const showContracts = state.settings.showContractReport === "sim";
   const brokerRows = state.brokers.map((broker) => {
@@ -849,6 +884,7 @@ function reportsView() {
   const owners = ownerSummaryRows(m, month);
   const contractReport = showContracts ? `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map((contract) => contractRow(contract, month))) : empty("Nenhum contrato no periodo.")}</section>` : "";
   return contractReportPanel() + `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise por periodo</p><h2>Reservas no periodo</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><button class="ghost-button" data-clear-period-report type="button">Usar mes selecionado</button></div></div><p class="muted block-help">${periodContracts.length} reserva(s) - Total ${money(periodTotal)} - Comissao a pagar ${money(periodCommission)}</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
     <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${percent(m.occupancy)} ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
     ${occupancyReportPanel(month, apartmentId)}
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Proprietarios</p><h2>Resultado por proprietario</h2></div></div>${owners.length ? table(["Proprietario", "Apartamentos", "Receita", "Comissoes", "Despesas", "Resultado"], owners.map((row) => [escapeHtml(row.owner), escapeHtml([...row.apartments].join(", ") || "-"), money(row.revenue), money(row.commission), money(row.expenses), money(row.net)])) : empty("Nenhum resultado por proprietario no periodo.")}</section>
@@ -991,7 +1027,7 @@ function fieldsFor(collection, record = {}) {
       ["name", "Nome", "text", null, true], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["commissionDefault", "Comissao padrao (%)", "number"], ["status", "Status", "select", [["ativo", "Ativo"], ["inativo", "Inativo"]]], ["notes", "Observacoes", "textarea"]
     ],
     contracts: [
-      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, previousRecordsClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]], false, "pago"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal", "number", null, false, 0], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
+      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, previousRecordsClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]], false, "pago"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal", "number", null, false, 0], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     expenses: [
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
@@ -1061,6 +1097,10 @@ function bindFormEnhancements(collection) {
 function fieldHtml(field) {
   const full = field.type === "textarea" || ["address", "ownerAddress", "notes", "description", "contractNotes", "paymentInstructions"].includes(field.key) ? " full" : "";
   const required = field.required ? "required" : "";
+  if (field.type === "checkbox") {
+    const checked = field.value === true || field.value === "sim";
+    return `<div class="field checkbox-field"><label for="${field.key}"><input id="${field.key}" name="${field.key}" type="checkbox" value="sim" ${checked ? "checked" : ""} /><span>${field.label}</span></label></div>`;
+  }
   if (field.type === "select") {
     const options = typeof field.options === "function" ? field.options() : field.options;
     return `<div class="field${full}"><label for="${field.key}">${field.label}</label><select id="${field.key}" name="${field.key}" ${required}>${options.map(([value, label]) => `<option value="${escapeHtml(value)}" ${String(value) === String(field.value) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></div>`;
@@ -1085,6 +1125,7 @@ function submitForm(event) {
   const fields = fieldsFor(collection, id ? state[collection].find((item) => item.id === id) : {});
   const record = Object.fromEntries(new FormData(event.currentTarget).entries());
   fields.filter((field) => field.type === "number").forEach((field) => record[field.key] = toNumber(record[field.key]));
+  fields.filter((field) => field.type === "checkbox").forEach((field) => record[field.key] = record[field.key] === "sim" ? "sim" : "nao");
 
   if (collection === "clients") {
     const documentError = validateDocumentValue(record.document);
@@ -1238,9 +1279,10 @@ function calendarExportEventHtml(event) {
   const client = getById("clients", contract.clientId);
   const aptName = apt?.name || apt?.unitNumber || "Apto";
   const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
+  const brokerName = calendarBrokerLabel(contract, client);
   const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
   const isCheckout = event.type === "checkout";
-  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small></div>`;
+  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small>${brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : ""}</div>`;
 }
 
 function hexToRgba(hex, alpha) {
@@ -1257,7 +1299,8 @@ function calendarWhatsappSummary(month, apartmentId = "") {
   contracts.forEach((contract) => {
     const client = getById("clients", contract.clientId);
     const apt = getById("apartments", contract.apartmentId);
-    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)`);
+    const brokerName = calendarBrokerLabel(contract, client);
+    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)${brokerName ? ` - Corretor: ${shortName(brokerName)}` : ""}`);
   });
   if (lines.length === 1 || (apartmentId && lines.length === 2)) lines.push("Sem reservas no periodo.");
   return lines.join("\n");
@@ -1319,6 +1362,16 @@ function bindViewEvents() {
   document.querySelector("#reportApartment")?.addEventListener("change", (event) => {
     state.settings.reportApartment = event.target.value;
     saveState("report_apartment_change");
+    render();
+  });
+  document.querySelector("#reportPeriodStart")?.addEventListener("change", (event) => {
+    state.settings.reportPeriodStart = event.target.value;
+    saveState("report_period_start_change");
+    render();
+  });
+  document.querySelector("#reportPeriodEnd")?.addEventListener("change", (event) => {
+    state.settings.reportPeriodEnd = event.target.value;
+    saveState("report_period_end_change");
     render();
   });
   document.querySelector("#contractReportSelect")?.addEventListener("change", (event) => {
@@ -1440,7 +1493,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.30-auto-20260715-1710");
+  url.searchParams.set("v", "2.1.31-auto-20260715-1833");
   return url.toString();
 }
 
@@ -1472,7 +1525,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.30-auto-20260715-1710");
+  location.replace("login.html?v=2.1.31-auto-20260715-1833");
 }
 
 async function handleSyncAction(action) {
@@ -1514,6 +1567,14 @@ async function handleSyncAction(action) {
 }
 
 document.addEventListener("click", (event) => {
+  const clearPeriodReportBtn = event.target.closest("[data-clear-period-report]");
+  if (clearPeriodReportBtn) {
+    state.settings.reportPeriodStart = "";
+    state.settings.reportPeriodEnd = "";
+    saveState("report_period_clear");
+    render();
+    return;
+  }
   const clearReservationFiltersBtn = event.target.closest("[data-clear-reservation-filters]");
   if (clearReservationFiltersBtn) {
     state.settings.contractFilterStart = "";
@@ -1642,6 +1703,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

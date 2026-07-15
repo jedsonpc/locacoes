@@ -1008,6 +1008,31 @@ th {
   font-size: 0.86rem;
 }
 
+.checkbox-field {
+  align-content: end;
+}
+
+.checkbox-field label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+}
+
 .field input,
 .field select,
 .field textarea {
