@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.32-auto-20260715-1841";
+const APP_VERSION_LABEL = "v2.1.33-auto-20260715-1846";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -1196,28 +1196,9 @@ function downloadBlob(filename, blob) {
 async function exportCalendarForWhatsapp() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
-  const image = calendarWhatsappImage(month, apartmentId);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}"><foreignObject width="100%" height="100%">${image.html}</foreignObject></svg>`;
   try {
-    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const picture = new Image();
-    await new Promise((resolve, reject) => {
-      picture.onload = resolve;
-      picture.onerror = reject;
-      picture.src = url;
-    });
-    const canvas = document.createElement("canvas");
-    const scale = 1;
-    canvas.width = image.width * scale;
-    canvas.height = image.height * scale;
-    const context = canvas.getContext("2d");
-    context.scale(scale, scale);
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, image.width, image.height);
-    context.drawImage(picture, 0, 0);
-    URL.revokeObjectURL(url);
-    const jpegBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    const image = calendarWhatsappCanvas(month, apartmentId);
+    const jpegBlob = await new Promise((resolve) => image.canvas.toBlob(resolve, "image/jpeg", 0.8));
     if (!jpegBlob) throw new Error("Nao foi possivel gerar JPG.");
     downloadBlob(`calendario-whatsapp-${month}.jpg`, jpegBlob);
     try {
@@ -1226,10 +1207,134 @@ async function exportCalendarForWhatsapp() {
     } catch {
       toast("Calendario JPG compacto gerado.");
     }
-  } catch {
-    download(`calendario-whatsapp-${month}.svg`, svg, "image/svg+xml;charset=utf-8");
-    toast("JPG indisponivel neste navegador. Gerei o calendario em SVG.");
+  } catch (error) {
+    toast(error.message || "Nao foi possivel gerar o calendario JPG.");
   }
+}
+
+function calendarWhatsappCanvas(month, apartmentId = "") {
+  const { start, end } = monthRange(month);
+  const monthLabel = month.split("-").reverse().join("/");
+  const scope = apartmentId ? getById("apartments", apartmentId)?.name || "Apartamento" : "Todos os apartamentos";
+  const summary = calendarWhatsappSummary(month, apartmentId);
+  const summaryLines = summary.split("\n");
+  const cells = [];
+  for (let item = 0; item < start.getUTCDay(); item += 1) cells.push(null);
+  for (let day = 1; day <= end.getUTCDate(); day += 1) cells.push(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), day)));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const weeks = [];
+  for (let item = 0; item < cells.length; item += 7) weeks.push(cells.slice(item, item + 7));
+  const eventHeight = (event) => {
+    const contract = event.contract || event;
+    const client = getById("clients", contract.clientId);
+    return calendarBrokerLabel(contract, client) ? 44 : 31;
+  };
+  const weekHeights = weeks.map((week) => Math.max(116, ...week.map((date) => {
+    if (!date) return 116;
+    const events = calendarEventsForDate(date, apartmentId);
+    return 36 + events.reduce((total, event) => total + eventHeight(event) + 5, 0) + 8;
+  })));
+
+  const width = 1080;
+  const margin = 24;
+  const gap = 6;
+  const headerHeight = 116;
+  const weekdayHeight = 38;
+  const summaryHeight = 54 + summaryLines.length * 25;
+  const height = margin + headerHeight + weekdayHeight + gap + weekHeights.reduce((total, value) => total + value + gap, 0) + summaryHeight + margin;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Navegador sem suporte para gerar JPG.");
+
+  context.fillStyle = "#f8fafc";
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "#0f766e";
+  context.font = "900 18px Arial";
+  context.fillText("OCUPACAO MENSAL", margin, 43);
+  context.fillStyle = "#0f172a";
+  context.font = "900 38px Arial";
+  context.fillText(`Calendario ${monthLabel}`, margin, 84);
+  context.font = "700 18px Arial";
+  context.textAlign = "right";
+  context.fillText(canvasFitText(context, scope, 360), width - margin, 76);
+  context.textAlign = "left";
+
+  const gridWidth = width - margin * 2;
+  const cellWidth = (gridWidth - gap * 6) / 7;
+  const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  let y = margin + headerHeight;
+  weekdays.forEach((day, index) => {
+    const x = margin + index * (cellWidth + gap);
+    context.fillStyle = "#0f172a";
+    context.fillRect(x, y, cellWidth, weekdayHeight);
+    context.fillStyle = "#ffffff";
+    context.font = "900 15px Arial";
+    context.textAlign = "center";
+    context.fillText(day, x + cellWidth / 2, y + 25);
+  });
+  context.textAlign = "left";
+  y += weekdayHeight + gap;
+
+  weeks.forEach((week, weekIndex) => {
+    const cellHeight = weekHeights[weekIndex];
+    week.forEach((date, dayIndex) => {
+      const x = margin + dayIndex * (cellWidth + gap);
+      context.fillStyle = date ? "#ffffff" : "#e2e8f0";
+      context.fillRect(x, y, cellWidth, cellHeight);
+      context.strokeStyle = "#cbd5e1";
+      context.strokeRect(x, y, cellWidth, cellHeight);
+      if (!date) return;
+      context.fillStyle = "#0f172a";
+      context.font = "900 16px Arial";
+      context.fillText(String(date.getUTCDate()), x + 8, y + 21);
+      let eventY = y + 29;
+      calendarEventsForDate(date, apartmentId).forEach((event) => {
+        const contract = event.contract || event;
+        const apt = getById("apartments", contract.apartmentId);
+        const client = getById("clients", contract.clientId);
+        const brokerName = calendarBrokerLabel(contract, client);
+        const aptName = apt?.name || apt?.unitNumber || "Apto";
+        const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
+        const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
+        const itemHeight = brokerName ? 44 : 31;
+        context.fillStyle = hexToRgba(color, 0.14);
+        context.fillRect(x + 6, eventY, cellWidth - 12, itemHeight);
+        context.fillStyle = color;
+        context.fillRect(x + 6, eventY, 5, itemHeight);
+        context.fillStyle = "#0f172a";
+        context.font = "800 11px Arial";
+        context.fillText(canvasFitText(context, aptName, cellWidth - 28), x + 16, eventY + 13);
+        context.font = "700 10px Arial";
+        const checkout = event.type === "checkout" ? "Saida - " : "";
+        context.fillText(canvasFitText(context, `${checkout}${shortName(clientName)} - ${contract.guests || 0}h`, cellWidth - 28), x + 16, eventY + 26);
+        if (brokerName) context.fillText(canvasFitText(context, `Corretor: ${shortName(brokerName)}`, cellWidth - 28), x + 16, eventY + 39);
+        eventY += itemHeight + 5;
+      });
+    });
+    y += cellHeight + gap;
+  });
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(margin, y + 10, gridWidth, summaryHeight - 10);
+  context.strokeStyle = "#cbd5e1";
+  context.strokeRect(margin, y + 10, gridWidth, summaryHeight - 10);
+  summaryLines.forEach((line, index) => {
+    context.fillStyle = index === 0 ? "#0f766e" : "#0f172a";
+    context.font = index === 0 ? "900 17px Arial" : "700 14px Arial";
+    context.fillText(canvasFitText(context, line, gridWidth - 28), margin + 14, y + 38 + index * 25);
+  });
+  return { canvas, summary };
+}
+
+function canvasFitText(context, text, maxWidth) {
+  const original = String(text || "");
+  if (context.measureText(original).width <= maxWidth) return original;
+  let shortened = original;
+  while (shortened.length > 1 && context.measureText(`${shortened}...`).width > maxWidth) shortened = shortened.slice(0, -1);
+  return `${shortened}...`;
 }
 
 function calendarWhatsappImage(month, apartmentId = "") {
@@ -1493,7 +1598,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.32-auto-20260715-1841");
+  url.searchParams.set("v", "2.1.33-auto-20260715-1846");
   return url.toString();
 }
 
@@ -1525,7 +1630,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.32-auto-20260715-1841");
+  location.replace("login.html?v=2.1.33-auto-20260715-1846");
 }
 
 async function handleSyncAction(action) {
@@ -1703,6 +1808,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
