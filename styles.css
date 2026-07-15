@@ -523,9 +523,29 @@ h3 {
 }
 
 .report-chart-scroll {
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   padding-bottom: 4px;
+}
+
+.report-chart-plot {
+  display: grid;
+  grid-template-columns: minmax(48px, auto) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.report-chart-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 196px;
+  padding: 3px 0 24px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .report-chart-bars {
@@ -534,20 +554,19 @@ h3 {
   align-items: end;
   gap: 7px;
   min-width: max(100%, calc(var(--chart-columns) * 55px));
-  height: 230px;
-  padding: 8px 4px 0;
+  height: 196px;
+  padding: 3px 4px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .report-chart-column {
   display: grid;
-  grid-template-rows: 24px 170px 26px;
+  grid-template-rows: 166px 26px;
   align-items: end;
   min-width: 0;
   text-align: center;
 }
 
-.report-chart-column > span,
 .report-chart-column > small {
   overflow: hidden;
   font-size: 0.68rem;
@@ -565,16 +584,31 @@ h3 {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 170px;
+  height: 166px;
   background: linear-gradient(to top, var(--panel-2), transparent);
   border-radius: 6px 6px 0 0;
 }
 
 .report-chart-bar i {
-  display: block;
-  width: min(34px, 72%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: min(48px, 84%);
+  min-height: 0;
+  padding: 4px 2px;
   border-radius: 6px 6px 0 0;
   background: linear-gradient(180deg, var(--brand-2), var(--brand));
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-style: normal;
+  overflow: hidden;
+  text-align: center;
+}
+
+.report-chart-bar i b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .comparison-list {
