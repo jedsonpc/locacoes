@@ -1,12 +1,13 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $packageRoot = Split-Path -Parent $PSScriptRoot
 $installRoot = Join-Path $env:LOCALAPPDATA "LocacoesApp"
 $installApp = Join-Path $installRoot "app"
 $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
-$iconFile = Join-Path $installApp "locacoes-app.ico"
-$appVersion = "2.1.5"
+$iconFile = Join-Path $installApp "cupe-beach-living.ico"
+$sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
+$appVersion = "2.1.28-portaria-20260715"
 $port = 8787
 
 if (!(Test-Path (Join-Path $packageRoot "index.html"))) {
@@ -158,7 +159,7 @@ if (Test-LocalServer) {
 
 $desktop = [Environment]::GetFolderPath("Desktop")
 $programs = [Environment]::GetFolderPath("Programs")
-$shortcutName = "Locacoes.lnk"
+$shortcutName = "Cupe Beach Living.lnk"
 $desktopShortcut = Join-Path $desktop $shortcutName
 $startMenuDir = Join-Path $programs "Locacoes"
 $startMenuShortcut = Join-Path $startMenuDir $shortcutName
@@ -173,14 +174,19 @@ foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
   $shortcut.TargetPath = $powershell
   $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`""
   $shortcut.WorkingDirectory = $installRoot
-  $shortcut.Description = "Abrir Locacoes com login Supabase"
+  $shortcut.Description = "Abrir Cupe Beach Living diretamente na tela de login"
   if (Test-Path $iconFile) {
-    $shortcut.IconLocation = $iconFile
+    $shortcut.IconLocation = "$iconFile,0"
   }
   $shortcut.Save()
 }
 
 Write-Host ""
 Write-Host "Instalacao concluida."
-Write-Host "Atalho criado na Area de Trabalho e no Menu Iniciar: Locacoes"
+Write-Host "Atalho criado na Area de Trabalho e no Menu Iniciar: Cupe Beach Living"
 Write-Host "Arquivos instalados em: $installRoot"
+
+
+
+
+

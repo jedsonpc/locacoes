@@ -113,7 +113,14 @@ $installerSrc = Join-Path $appRoot "installers"
 $installerDest = Join-Path $repo "installers"
 if (Test-Path -LiteralPath $installerSrc) {
   New-Item -ItemType Directory -Force -Path $installerDest | Out-Null
-  Copy-Item -LiteralPath (Join-Path $installerSrc "*") -Destination $installerDest -Recurse -Force
+  Get-ChildItem -LiteralPath $installerSrc -Force | Copy-Item -Destination $installerDest -Recurse -Force
+}
+
+$latestInstaller = Get-ChildItem -LiteralPath $appRoot -Filter "Locacoes-Instalador-Completo-*.zip" -File |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+if ($latestInstaller) {
+  Copy-Item -LiteralPath $latestInstaller.FullName -Destination (Join-Path $repo $latestInstaller.Name) -Force
 }
 
 Write-Host "Versao preparada: $versionSlug"
