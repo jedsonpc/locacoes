@@ -148,6 +148,7 @@ $installerDest = Join-Path $repo "installers"
 if (Test-Path -LiteralPath $installerSrc) {
   New-Item -ItemType Directory -Force -Path $installerDest | Out-Null
   Get-ChildItem -LiteralPath $installerSrc -Force | Copy-Item -Destination $installerDest -Recurse -Force
+  Get-ChildItem -LiteralPath $installerDest -Filter "*.backup-*" -File -ErrorAction SilentlyContinue | Remove-Item -Force
 }
 
 $latestInstaller = Get-ChildItem -LiteralPath $appRoot -Filter "Locacoes-Instalador-Completo-*.zip" -File |
