@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.34-auto-20260715-1922";
+const APP_VERSION_LABEL = "v2.1.35-auto-20260715-1953";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -741,7 +741,7 @@ function calendarEventHtml(event) {
   const aptName = apt?.name || apt?.unitNumber || "Apto";
   const isCheckout = event.type === "checkout";
   const brokerLine = brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : "";
-  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small>${brokerLine}</span>`;
+  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)} - Hóspedes: ${contract.guests || 0}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))}</small><small>Hóspedes: ${contract.guests || 0}</small>${brokerLine}</span>`;
 }
 
 function shortName(name) {
@@ -1273,25 +1273,46 @@ function downloadBlob(filename, blob) {
 async function exportCalendarForWhatsapp() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
+  const previewWindow = window.open("", "_blank");
+  if (previewWindow) {
+    previewWindow.document.write(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gerando calendario...</title></head><body style="font-family:Arial,sans-serif;padding:24px;text-align:center">Gerando imagem JPG...</body></html>`);
+    previewWindow.document.close();
+  }
   try {
     const image = calendarWhatsappCanvas(month, apartmentId);
     const jpegBlob = await new Promise((resolve) => image.canvas.toBlob(resolve, "image/jpeg", 0.8));
     if (!jpegBlob) throw new Error("Nao foi possivel gerar JPG.");
-    downloadBlob(`calendario-whatsapp-${month}.jpg`, jpegBlob);
+    const filename = `Reservas Cupe Beach - ${calendarMonthYearLabel(month)}.jpg`;
+    if (previewWindow && !previewWindow.closed) {
+      const imageUrl = URL.createObjectURL(jpegBlob);
+      previewWindow.document.open();
+      previewWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(filename)}</title><style>*{box-sizing:border-box}body{margin:0;padding:12px;background:#0f172a;color:#fff;font-family:Arial,sans-serif;text-align:center}.actions{position:sticky;top:0;z-index:2;padding:10px;background:#0f172a}a{display:inline-block;padding:11px 18px;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;text-decoration:none}p{margin:8px 0 0;color:#cbd5e1;font-size:13px}img{display:block;width:100%;max-width:1080px;height:auto;margin:10px auto 0;background:#fff}</style></head><body><div class="actions"><a href="${imageUrl}" download="${escapeHtml(filename)}">Salvar imagem JPG</a><p>No celular, voce tambem pode tocar e segurar a imagem para compartilhar.</p></div><img src="${imageUrl}" alt="Calendario de reservas ${escapeHtml(calendarMonthYearLabel(month))}"></body></html>`);
+      previewWindow.document.close();
+      setTimeout(() => URL.revokeObjectURL(imageUrl), 600000);
+    } else {
+      downloadBlob(filename, jpegBlob);
+    }
     try {
       await navigator.clipboard.writeText(image.summary);
-      toast("Calendario JPG compacto gerado e resumo copiado.");
+      toast("Imagem JPG aberta e resumo copiado.");
     } catch {
-      toast("Calendario JPG compacto gerado.");
+      toast("Imagem JPG aberta para visualizar e salvar.");
     }
   } catch (error) {
+    if (previewWindow && !previewWindow.closed) previewWindow.close();
     toast(error.message || "Nao foi possivel gerar o calendario JPG.");
   }
 }
 
+function calendarMonthYearLabel(month) {
+  const [year, monthNumber] = String(month || monthIso()).split("-");
+  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  return `${monthNames[Math.max(0, Math.min(11, Number(monthNumber) - 1))]} ${year}`;
+}
+
 function calendarWhatsappCanvas(month, apartmentId = "") {
   const { start, end } = monthRange(month);
-  const monthLabel = month.split("-").reverse().join("/");
+  const monthLabel = calendarMonthYearLabel(month);
   const scope = apartmentId ? getById("apartments", apartmentId)?.name || "Apartamento" : "Todos os apartamentos";
   const summary = calendarWhatsappSummary(month, apartmentId);
   const summaryLines = summary.split("\n");
@@ -1305,7 +1326,7 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
   const eventHeight = (event) => {
     const contract = event.contract || event;
     const client = getById("clients", contract.clientId);
-    return calendarBrokerLabel(contract, client) ? 44 : 31;
+    return calendarBrokerLabel(contract, client) ? 57 : 44;
   };
   const weekHeights = weeks.map((week) => Math.max(116, ...week.map((date) => {
     if (!date) return 116;
@@ -1333,7 +1354,7 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
   context.fillText("OCUPACAO MENSAL", margin, 43);
   context.fillStyle = "#0f172a";
   context.font = "900 38px Arial";
-  context.fillText(`Calendario ${monthLabel}`, margin, 84);
+  context.fillText(`Reservas Cupe Beach - ${monthLabel}`, margin, 84);
   context.font = "700 18px Arial";
   context.textAlign = "right";
   context.fillText(canvasFitText(context, scope, 360), width - margin, 76);
@@ -1376,7 +1397,7 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
         const aptName = apt?.name || apt?.unitNumber || "Apto";
         const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
         const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
-        const itemHeight = brokerName ? 44 : 31;
+        const itemHeight = brokerName ? 57 : 44;
         context.fillStyle = hexToRgba(color, 0.14);
         context.fillRect(x + 6, eventY, cellWidth - 12, itemHeight);
         context.fillStyle = color;
@@ -1386,8 +1407,9 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
         context.fillText(canvasFitText(context, aptName, cellWidth - 28), x + 16, eventY + 13);
         context.font = "700 10px Arial";
         const checkout = event.type === "checkout" ? "Saida - " : "";
-        context.fillText(canvasFitText(context, `${checkout}${shortName(clientName)} - ${contract.guests || 0}h`, cellWidth - 28), x + 16, eventY + 26);
-        if (brokerName) context.fillText(canvasFitText(context, `Corretor: ${shortName(brokerName)}`, cellWidth - 28), x + 16, eventY + 39);
+        context.fillText(canvasFitText(context, `${checkout}${shortName(clientName)}`, cellWidth - 28), x + 16, eventY + 26);
+        context.fillText(canvasFitText(context, `Hóspedes: ${contract.guests || 0}`, cellWidth - 28), x + 16, eventY + 39);
+        if (brokerName) context.fillText(canvasFitText(context, `Corretor: ${shortName(brokerName)}`, cellWidth - 28), x + 16, eventY + 52);
         eventY += itemHeight + 5;
       });
     });
@@ -1464,7 +1486,7 @@ function calendarExportEventHtml(event) {
   const brokerName = calendarBrokerLabel(contract, client);
   const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
   const isCheckout = event.type === "checkout";
-  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))} - ${contract.guests || 0}h</small>${brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : ""}</div>`;
+  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))}</small><small>Hóspedes: ${contract.guests || 0}</small>${brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : ""}</div>`;
 }
 
 function hexToRgba(hex, alpha) {
@@ -1675,7 +1697,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.34-auto-20260715-1922");
+  url.searchParams.set("v", "2.1.35-auto-20260715-1953");
   return url.toString();
 }
 
@@ -1707,7 +1729,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.34-auto-20260715-1922");
+  location.replace("login.html?v=2.1.35-auto-20260715-1953");
 }
 
 async function handleSyncAction(action) {
@@ -1885,6 +1907,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
