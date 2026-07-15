@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.31-auto-20260715-1833";
+const APP_VERSION_LABEL = "v2.1.32-auto-20260715-1841";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -883,8 +883,8 @@ function reportsView() {
   }).filter((row) => row[1]);
   const owners = ownerSummaryRows(m, month);
   const contractReport = showContracts ? `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map((contract) => contractRow(contract, month))) : empty("Nenhum contrato no periodo.")}</section>` : "";
-  return contractReportPanel() + `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise por periodo</p><h2>Reservas no periodo</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><button class="ghost-button" data-clear-period-report type="button">Usar mes selecionado</button></div></div><p class="muted block-help">${periodContracts.length} reserva(s) - Total ${money(periodTotal)} - Comissao a pagar ${money(periodCommission)}</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
+  return contractReportPanel() + `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise por periodo</p><h2>Reservas no periodo</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><button class="ghost-button" data-clear-period-report type="button">Usar mes selecionado</button></div></div><p class="muted block-help">${periodContracts.length} reserva(s) - Total ${money(periodTotal)} - Comissao a pagar ${money(periodCommission)}</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
     <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${percent(m.occupancy)} ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
     ${occupancyReportPanel(month, apartmentId)}
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Proprietarios</p><h2>Resultado por proprietario</h2></div></div>${owners.length ? table(["Proprietario", "Apartamentos", "Receita", "Comissoes", "Despesas", "Resultado"], owners.map((row) => [escapeHtml(row.owner), escapeHtml([...row.apartments].join(", ") || "-"), money(row.revenue), money(row.commission), money(row.expenses), money(row.net)])) : empty("Nenhum resultado por proprietario no periodo.")}</section>
@@ -1208,7 +1208,7 @@ async function exportCalendarForWhatsapp() {
       picture.src = url;
     });
     const canvas = document.createElement("canvas");
-    const scale = 2;
+    const scale = 1;
     canvas.width = image.width * scale;
     canvas.height = image.height * scale;
     const context = canvas.getContext("2d");
@@ -1217,18 +1217,18 @@ async function exportCalendarForWhatsapp() {
     context.fillRect(0, 0, image.width, image.height);
     context.drawImage(picture, 0, 0);
     URL.revokeObjectURL(url);
-    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.95));
-    if (!pngBlob) throw new Error("Nao foi possivel gerar PNG.");
-    downloadBlob(`calendario-whatsapp-${month}.png`, pngBlob);
+    const jpegBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!jpegBlob) throw new Error("Nao foi possivel gerar JPG.");
+    downloadBlob(`calendario-whatsapp-${month}.jpg`, jpegBlob);
     try {
       await navigator.clipboard.writeText(image.summary);
-      toast("Imagem do calendario gerada e resumo copiado.");
+      toast("Calendario JPG compacto gerado e resumo copiado.");
     } catch {
-      toast("Imagem do calendario gerada.");
+      toast("Calendario JPG compacto gerado.");
     }
   } catch {
     download(`calendario-whatsapp-${month}.svg`, svg, "image/svg+xml;charset=utf-8");
-    toast("PNG indisponivel neste navegador. Gerei o calendario em SVG.");
+    toast("JPG indisponivel neste navegador. Gerei o calendario em SVG.");
   }
 }
 
@@ -1243,7 +1243,7 @@ function calendarWhatsappImage(month, apartmentId = "") {
   const rows = Math.max(5, cells.length / 7);
   const summary = calendarWhatsappSummary(month, apartmentId);
   const summaryLines = summary.split("\n");
-  const width = 1240;
+  const width = 1080;
   const height = 174 + rows * 128 + 64 + Math.max(92, summaryLines.length * 30) + 38;
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => `<div class="export-weekday">${day}</div>`).join("");
   const days = cells.map((date) => {
@@ -1493,7 +1493,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.31-auto-20260715-1833");
+  url.searchParams.set("v", "2.1.32-auto-20260715-1841");
   return url.toString();
 }
 
@@ -1525,7 +1525,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.31-auto-20260715-1833");
+  location.replace("login.html?v=2.1.32-auto-20260715-1841");
 }
 
 async function handleSyncAction(action) {
@@ -1703,6 +1703,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
