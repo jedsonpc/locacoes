@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
-$baseVersion = "2.1.29"
+$baseVersion = "2.1.30"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
@@ -65,6 +65,39 @@ $versionJson = [ordered]@{
   deployedAt = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
 } | ConvertTo-Json
 Set-TextFile (Join-Path $appRoot "version.json") $versionJson
+
+$installerName = "Locacoes-Instalador-Completo-$baseVersion.zip"
+$installerPath = Join-Path $appRoot $installerName
+$installerItems = @(
+  "installers",
+  "abrir-app-locacao.bat",
+  "app.js",
+  "cupe-beach-living.ico",
+  "cupe-beach-living.jpg",
+  "cupe-login-recorte-real.jpg",
+  "icon-192.png",
+  "icon-512.png",
+  "icon.svg",
+  "index.html",
+  "iniciar-app-locacao.ps1",
+  "instalar-atalho-windows.bat",
+  "LEIA-ME.txt",
+  "login.html",
+  "logo-cupe-beach-living.png",
+  "manifest.webmanifest",
+  "styles.css",
+  "supabase-config.js",
+  "supabase-sync.js",
+  "sw.js",
+  "update-checker.js",
+  "version.json"
+) | ForEach-Object { Join-Path $appRoot $_ } | Where-Object { Test-Path -LiteralPath $_ }
+
+if (Test-Path -LiteralPath $installerPath) {
+  Remove-Item -LiteralPath $installerPath -Force
+}
+Compress-Archive -LiteralPath $installerItems -DestinationPath $installerPath -CompressionLevel Optimal
+Write-Host "Instalador gerado: $installerName"
 
 $itemsToPublish = @(
   "app.js",

@@ -37,7 +37,7 @@ if (-not $Port) {
   exit 1
 }
 
-$Url = "http://127.0.0.1:$Port/index.html"
+$Url = "http://127.0.0.1:$Port/login.html"
 
 Write-Host "Cupe Beach Living"
 Write-Host "Pasta: $AppDir"
@@ -47,7 +47,22 @@ Write-Host "Mantenha esta janela aberta enquanto estiver usando o app."
 Write-Host "Para encerrar o servidor, feche esta janela."
 Write-Host ""
 
-$openCommand = "Start-Sleep -Milliseconds 900; Start-Process '$Url'"
+$browserCandidates = @(
+  "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+  "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+  "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+  "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+)
+$browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+$openCommand = @"
+Start-Sleep -Milliseconds 900
+`$browserPath = '$browserPath'
+if (`$browserPath) {
+  Start-Process -FilePath `$browserPath -ArgumentList @('--start-maximized', '--new-window', '$Url')
+} else {
+  Start-Process '$Url'
+}
+"@
 Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-Command", $openCommand) -WindowStyle Hidden | Out-Null
 
 & $Python -m http.server $Port -d $AppDir

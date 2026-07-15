@@ -890,6 +890,45 @@ th {
   padding: 20px;
 }
 
+.reservation-dialog {
+  width: min(1400px, calc(100vw - 28px));
+  max-height: calc(100dvh - 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.reservation-dialog::-webkit-scrollbar {
+  display: none;
+}
+
+.reservation-dialog form {
+  padding: 14px 18px;
+}
+
+.reservation-dialog .form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.reservation-dialog .field {
+  gap: 3px;
+}
+
+.reservation-dialog input,
+.reservation-dialog select {
+  min-height: 36px;
+  padding: 7px 9px;
+}
+
+.reservation-dialog textarea {
+  min-height: 48px;
+}
+
+.reservation-dialog .dialog-actions {
+  margin-top: 10px;
+}
+
 .dialog-head,
 .dialog-actions {
   display: flex;
@@ -1132,6 +1171,10 @@ th {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-dialog .form-grid {
     grid-template-columns: 1fr;
   }
 
