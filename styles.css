@@ -501,6 +501,133 @@ h3 {
   margin-top: 14px;
 }
 
+.report-filter-error {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.report-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.report-chart {
+  min-width: 0;
+}
+
+.report-chart h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.report-chart-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.report-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(var(--chart-columns), minmax(48px, 1fr));
+  align-items: end;
+  gap: 7px;
+  min-width: max(100%, calc(var(--chart-columns) * 55px));
+  height: 230px;
+  padding: 8px 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.report-chart-column {
+  display: grid;
+  grid-template-rows: 24px 170px 26px;
+  align-items: end;
+  min-width: 0;
+  text-align: center;
+}
+
+.report-chart-column > span,
+.report-chart-column > small {
+  overflow: hidden;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-chart-column > small {
+  color: var(--muted);
+  padding-top: 6px;
+}
+
+.report-chart-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 170px;
+  background: linear-gradient(to top, var(--panel-2), transparent);
+  border-radius: 6px 6px 0 0;
+}
+
+.report-chart-bar i {
+  display: block;
+  width: min(34px, 72%);
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--brand-2), var(--brand));
+}
+
+.comparison-list {
+  display: grid;
+  gap: 16px;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.comparison-series {
+  display: grid;
+  grid-template-columns: 58px minmax(80px, 1fr) minmax(76px, auto);
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.comparison-series span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.comparison-series b {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.comparison-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+
+.comparison-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.comparison-track i.current {
+  background: var(--brand);
+}
+
+.comparison-track i.previous {
+  background: var(--brand-2);
+}
+
 .occupancy-bar-row {
   display: grid;
   grid-template-columns: 44px minmax(120px, 1fr) 48px;
@@ -1113,6 +1240,19 @@ th {
 }
 
 @media (max-width: 680px) {
+  .report-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .comparison-series {
+    grid-template-columns: 54px minmax(72px, 1fr) minmax(70px, auto);
+  }
+
   .institutional-details div { gap: 5px; grid-template-columns: 1fr; }
   .stats {
     gap: 12px;

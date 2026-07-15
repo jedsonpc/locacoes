@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.33-auto-20260715-1846";
+const APP_VERSION_LABEL = "v2.1.34-auto-20260715-1922";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -849,19 +849,27 @@ function printSelectedContract() {
   setTimeout(() => printWindow.print(), 250);
 }
 function reportsView() {
-  const month = state.settings.reportMonth || state.settings.month || monthIso();
+  const currentMonth = monthIso();
   const apartmentId = state.settings.reportApartment || "";
-  const defaultPeriodStart = `${month}-01`;
-  const defaultPeriodEnd = `${month}-${String(monthRange(month).end.getUTCDate()).padStart(2, "0")}`;
-  const periodStart = state.settings.reportPeriodStart || defaultPeriodStart;
-  const periodEnd = state.settings.reportPeriodEnd || defaultPeriodEnd;
-  const periodContracts = [...state.contracts]
-    .filter((contract) => !periodStart || String(contract.checkOut || "") >= periodStart)
-    .filter((contract) => !periodEnd || String(contract.checkIn || "") <= periodEnd)
-    .sort((a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || "")));
-  const periodTotal = periodContracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
-  const periodCommission = periodContracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
-  const periodRows = periodContracts.map((contract) => {
+  const periodStart = state.settings.reportPeriodStart || `${currentMonth}-01`;
+  const periodEnd = state.settings.reportPeriodEnd || `${currentMonth}-${String(monthRange(currentMonth).end.getUTCDate()).padStart(2, "0")}`;
+  const validPeriod = periodStart <= periodEnd;
+  const periodDays = validPeriod ? Math.max(1, Math.round((parseDate(periodEnd) - parseDate(periodStart)) / oneDay) + 1) : 1;
+  const previousEnd = addDays(periodStart, -1);
+  const previousStart = addDays(previousEnd, -(periodDays - 1));
+  const listedContracts = validPeriod ? reportContractsForPeriod(periodStart, periodEnd, apartmentId, true) : [];
+  const activeContracts = listedContracts.filter((contract) => contract.status !== "cancelada");
+  const previousContracts = validPeriod ? reportContractsForPeriod(previousStart, previousEnd, apartmentId, false) : [];
+  const expenses = validPeriod ? reportExpensesForPeriod(periodStart, periodEnd, apartmentId) : [];
+  const previousExpenses = validPeriod ? reportExpensesForPeriod(previousStart, previousEnd, apartmentId) : [];
+  const current = reportPeriodMetrics(activeContracts, expenses);
+  const previous = reportPeriodMetrics(previousContracts, previousExpenses);
+  const buckets = reportPeriodBuckets(periodStart, periodEnd, activeContracts);
+  const brokerRows = state.brokers.map((broker) => {
+    const contracts = activeContracts.filter((contract) => contract.brokerId === broker.id);
+    return [escapeHtml(broker.name), contracts.length, money(contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0))];
+  }).filter((row) => row[1]);
+  const periodRows = listedContracts.map((contract) => {
     const totals = contractTotals(contract);
     const broker = getById("brokers", contract.brokerId);
     return [
@@ -874,23 +882,92 @@ function reportsView() {
       status(contract.status)
     ];
   });
-  const m = buildMetrics(month, apartmentId);
-  const showContracts = state.settings.showContractReport === "sim";
-  const brokerRows = state.brokers.map((broker) => {
-    const contracts = m.contracts.filter((contract) => contract.brokerId === broker.id);
-    const total = contracts.reduce((sum, contract) => sum + monthlyContractRevenue(contract, month) * (contractBrokerPercent(contract) / 100), 0);
-    return [escapeHtml(broker.name), contracts.length, money(total)];
-  }).filter((row) => row[1]);
-  const owners = ownerSummaryRows(m, month);
-  const contractReport = showContracts ? `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Periodo</p><h2>Contratos no mes</h2></div></div>${m.contracts.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], m.contracts.map((contract) => contractRow(contract, month))) : empty("Nenhum contrato no periodo.")}</section>` : "";
-  return contractReportPanel() + `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise por periodo</p><h2>Reservas no periodo</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><button class="ghost-button" data-clear-period-report type="button">Usar mes selecionado</button></div></div><p class="muted block-help">${periodContracts.length} reserva(s) - Total ${money(periodTotal)} - Comissao a pagar ${money(periodCommission)}</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Filtros</p><h2>Resultado e indicadores</h2></div><div class="filters"><label class="field">Mes<input id="reportMonth" type="month" value="${month}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div></section>
-    <div class="grid stats">${metric("Receita", money(m.revenue), `${m.contracts.length} contrato(s)`, "ok")}${metric("Comissoes", money(m.commission), "a pagar", "info")}${metric("Despesas", money(m.expenseTotal), "custos do mes", "warn")}${metric("Resultado", money(m.net), `${percent(m.occupancy)} ocupacao`, m.net >= 0 ? "ok" : "danger")}</div>
-    ${occupancyReportPanel(month, apartmentId)}
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Proprietarios</p><h2>Resultado por proprietario</h2></div></div>${owners.length ? table(["Proprietario", "Apartamentos", "Receita", "Comissoes", "Despesas", "Resultado"], owners.map((row) => [escapeHtml(row.owner), escapeHtml([...row.apartments].join(", ") || "-"), money(row.revenue), money(row.commission), money(row.expenses), money(row.net)])) : empty("Nenhum resultado por proprietario no periodo.")}</section>
-    <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes por corretor</h2></div></div>${brokerRows.length ? table(["Corretor", "Contratos", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas do mes</h2></div></div>${m.expenses.length ? table(["Data", "Apartamento", "Proprietario", "Categoria", "Valor"], m.expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(apt ? apartmentOwnerName(apt) : "Despesa geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Opcional</p><h2>Relatorio de contratos no mes</h2></div><button class="ghost-button" data-toggle-contract-report type="button">${showContracts ? "Ocultar relatorio" : "Gerar relatorio"}</button></div>${showContracts ? "" : empty("O relatorio de contratos fica oculto. Clique em Gerar relatorio para exibir.")}</section>
-    ${contractReport}`;
+  const filterError = validPeriod ? "" : `<p class="report-filter-error">A data final precisa ser igual ou posterior a data inicial.</p>`;
+  return contractReportPanel() + `<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div>${filterError}</section>
+    <div class="grid stats report-kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "periodo anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "periodo anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
+    ${reportComparisonPanel(current, previous, previousStart, previousEnd)}
+    ${reportEvolutionPanel(buckets)}
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2></div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
+    <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>`;
+}
+
+function reportContractsForPeriod(start, end, apartmentId = "", includeCancelled = false) {
+  return [...state.contracts]
+    .filter((contract) => includeCancelled || contract.status !== "cancelada")
+    .filter((contract) => !apartmentId || contract.apartmentId === apartmentId)
+    .filter((contract) => String(contract.checkIn || "") >= start && String(contract.checkIn || "") <= end)
+    .sort((a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || "")));
+}
+
+function reportExpensesForPeriod(start, end, apartmentId = "") {
+  return state.expenses.filter((expense) => String(expense.date || "") >= start && String(expense.date || "") <= end && (!apartmentId || expense.apartmentId === apartmentId));
+}
+
+function reportPeriodMetrics(contracts, expenses) {
+  const revenue = contracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
+  const commission = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+  const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
+  return { reservations: contracts.length, revenue, commission, expenses: expenseTotal, net: revenue - commission - expenseTotal };
+}
+
+function reportDeltaText(current, previous, suffix) {
+  if (!previous) return current ? `Novo em relacao ao ${suffix}` : `Sem movimento no ${suffix}`;
+  const delta = Math.round(((current - previous) / previous) * 100);
+  return `${delta >= 0 ? "+" : ""}${delta}% vs. ${suffix}`;
+}
+
+function reportComparisonPanel(current, previous, previousStart, previousEnd) {
+  const rows = [
+    ["Reservas", current.reservations, previous.reservations, (value) => String(value)],
+    ["Faturamento", current.revenue, previous.revenue, money]
+  ].map(([label, currentValue, previousValue, formatter]) => {
+    const max = Math.max(1, currentValue, previousValue);
+    return `<div class="comparison-row"><strong>${label}</strong><div class="comparison-series"><span>Atual</span><div class="comparison-track"><i class="current" style="width:${Math.round((currentValue / max) * 100)}%"></i></div><b>${formatter(currentValue)}</b></div><div class="comparison-series"><span>Anterior</span><div class="comparison-track"><i class="previous" style="width:${Math.round((previousValue / max) * 100)}%"></i></div><b>${formatter(previousValue)}</b></div></div>`;
+  }).join("");
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Comparativo</p><h2>Periodo atual x periodo anterior</h2></div><span class="muted">Anterior: ${dateBR(previousStart)} a ${dateBR(previousEnd)}</span></div><div class="comparison-list">${rows}</div></section>`;
+}
+
+function reportPeriodBuckets(start, end, contracts) {
+  if (!start || !end || start > end) return [];
+  const days = Math.round((parseDate(end) - parseDate(start)) / oneDay) + 1;
+  const buckets = [];
+  if (days <= 45) {
+    for (let date = start; date <= end; date = addDays(date, 1)) buckets.push({ start: date, end: date, label: dateBR(date).slice(0, 5), reservations: 0, revenue: 0 });
+  } else if (days <= 180) {
+    for (let date = start; date <= end; date = addDays(date, 7)) {
+      const bucketEnd = addDays(date, 6) > end ? end : addDays(date, 6);
+      buckets.push({ start: date, end: bucketEnd, label: dateBR(date).slice(0, 5), reservations: 0, revenue: 0 });
+    }
+  } else {
+    let cursor = new Date(Date.UTC(parseDate(start).getUTCFullYear(), parseDate(start).getUTCMonth(), 1));
+    const finalDate = parseDate(end);
+    while (cursor <= finalDate) {
+      const monthStart = cursor.toISOString().slice(0, 10) < start ? start : cursor.toISOString().slice(0, 10);
+      const monthEndDate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
+      const monthEnd = monthEndDate.toISOString().slice(0, 10) > end ? end : monthEndDate.toISOString().slice(0, 10);
+      buckets.push({ start: monthStart, end: monthEnd, label: `${String(cursor.getUTCMonth() + 1).padStart(2, "0")}/${cursor.getUTCFullYear()}`, reservations: 0, revenue: 0 });
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+  }
+  contracts.forEach((contract) => {
+    const bucket = buckets.find((item) => contract.checkIn >= item.start && contract.checkIn <= item.end);
+    if (!bucket) return;
+    bucket.reservations += 1;
+    bucket.revenue += contractTotals(contract).total;
+  });
+  return buckets;
+}
+
+function reportEvolutionPanel(buckets) {
+  const reservations = reportBarChart("Reservas", buckets, "reservations", (value) => String(value));
+  const revenue = reportBarChart("Faturamento", buckets, "revenue", money);
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Evolucao</p><h2>Reservas e faturamento</h2></div></div><div class="report-chart-grid">${reservations}${revenue}</div></section>`;
+}
+
+function reportBarChart(title, buckets, key, formatter) {
+  const max = Math.max(1, ...buckets.map((bucket) => bucket[key]));
+  const bars = buckets.map((bucket) => `<div class="report-chart-column" title="${escapeHtml(bucket.label)}: ${escapeHtml(formatter(bucket[key]))}"><span>${escapeHtml(formatter(bucket[key]))}</span><div class="report-chart-bar"><i style="height:${Math.max(bucket[key] ? 8 : 0, Math.round((bucket[key] / max) * 100))}%"></i></div><small>${escapeHtml(bucket.label)}</small></div>`).join("");
+  return `<div class="report-chart"><h3>${title}</h3><div class="report-chart-scroll"><div class="report-chart-bars" style="--chart-columns:${Math.max(1, buckets.length)}">${bars || `<span class="muted">Sem dados no periodo.</span>`}</div></div></div>`;
 }
 
 function occupancyReportPanel(month, apartmentId = "") {
@@ -1598,7 +1675,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.33-auto-20260715-1846");
+  url.searchParams.set("v", "2.1.34-auto-20260715-1922");
   return url.toString();
 }
 
@@ -1630,7 +1707,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.33-auto-20260715-1846");
+  location.replace("login.html?v=2.1.34-auto-20260715-1922");
 }
 
 async function handleSyncAction(action) {
@@ -1808,6 +1885,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
