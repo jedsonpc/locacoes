@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.35-auto-20260715-1953";
+const APP_VERSION_LABEL = "v2.1.36-auto-20260715-1957";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -850,6 +850,7 @@ function printSelectedContract() {
 }
 function reportsView() {
   const currentMonth = monthIso();
+  const currentYear = new Date().getFullYear();
   const apartmentId = state.settings.reportApartment || "";
   const periodStart = state.settings.reportPeriodStart || `${currentMonth}-01`;
   const periodEnd = state.settings.reportPeriodEnd || `${currentMonth}-${String(monthRange(currentMonth).end.getUTCDate()).padStart(2, "0")}`;
@@ -887,6 +888,7 @@ function reportsView() {
     <div class="grid stats report-kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "periodo anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "periodo anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
     ${reportComparisonPanel(current, previous, previousStart, previousEnd)}
     ${reportEvolutionPanel(buckets)}
+    ${annualBrokerRevenuePanel(currentYear, apartmentId)}
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2></div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
     <div class="grid two-col"><section class="panel"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>`;
 }
@@ -968,6 +970,29 @@ function reportBarChart(title, buckets, key, formatter) {
   const max = Math.max(1, ...buckets.map((bucket) => bucket[key]));
   const bars = buckets.map((bucket) => `<div class="report-chart-column" title="${escapeHtml(bucket.label)}: ${escapeHtml(formatter(bucket[key]))}"><span>${escapeHtml(formatter(bucket[key]))}</span><div class="report-chart-bar"><i style="height:${Math.max(bucket[key] ? 8 : 0, Math.round((bucket[key] / max) * 100))}%"></i></div><small>${escapeHtml(bucket.label)}</small></div>`).join("");
   return `<div class="report-chart"><h3>${title}</h3><div class="report-chart-scroll"><div class="report-chart-bars" style="--chart-columns:${Math.max(1, buckets.length)}">${bars || `<span class="muted">Sem dados no periodo.</span>`}</div></div></div>`;
+}
+
+function annualBrokerRevenuePanel(year, apartmentId = "") {
+  const monthLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const contracts = state.contracts.filter((contract) => contract.status !== "cancelada" && String(contract.checkIn || "").startsWith(`${year}-`) && contract.brokerId && (!apartmentId || contract.apartmentId === apartmentId));
+  const brokerRows = [...state.brokers]
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .map((broker) => {
+      const monthly = Array(12).fill(0);
+      contracts.filter((contract) => contract.brokerId === broker.id).forEach((contract) => {
+        const monthIndex = Number(String(contract.checkIn).slice(5, 7)) - 1;
+        if (monthIndex >= 0 && monthIndex < 12) monthly[monthIndex] += contractTotals(contract).total;
+      });
+      return { name: broker.name, monthly, total: monthly.reduce((sum, value) => sum + value, 0) };
+    })
+    .filter((row) => row.total > 0);
+  const monthlyTotals = Array.from({ length: 12 }, (_, index) => brokerRows.reduce((sum, row) => sum + row.monthly[index], 0));
+  const grandTotal = monthlyTotals.reduce((sum, value) => sum + value, 0);
+  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Ano corrente</p><h2>Faturamento mensal por corretor - ${year}</h2></div></div>${empty("Nenhuma locacao vinculada a corretor no ano corrente.")}</section>`;
+  const header = ["Corretor", ...monthLabels, "Total"].map((label) => `<th>${label}</th>`).join("");
+  const rows = brokerRows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td>${row.monthly.map((value) => `<td>${money(value)}</td>`).join("")}<td><strong>${money(row.total)}</strong></td></tr>`).join("");
+  const totalRow = `<tr class="annual-total-row"><td><strong>Total</strong></td>${monthlyTotals.map((value) => `<td><strong>${money(value)}</strong></td>`).join("")}<td><strong>${money(grandTotal)}</strong></td></tr>`;
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Ano corrente</p><h2>Faturamento mensal por corretor - ${year}</h2></div></div><p class="muted block-help">Valores integrais das locacoes, agrupados pelo mes da entrada e pelo corretor vinculado.</p><div class="table-wrap annual-revenue-table"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div></section>`;
 }
 
 function occupancyReportPanel(month, apartmentId = "") {
@@ -1697,7 +1722,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.35-auto-20260715-1953");
+  url.searchParams.set("v", "2.1.36-auto-20260715-1957");
   return url.toString();
 }
 
@@ -1729,7 +1754,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.35-auto-20260715-1953");
+  location.replace("login.html?v=2.1.36-auto-20260715-1957");
 }
 
 async function handleSyncAction(action) {
@@ -1907,6 +1932,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

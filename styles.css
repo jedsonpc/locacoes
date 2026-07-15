@@ -628,6 +628,36 @@ h3 {
   background: var(--brand-2);
 }
 
+.annual-revenue-table table {
+  min-width: 1500px;
+  table-layout: auto;
+}
+
+.annual-revenue-table th,
+.annual-revenue-table td {
+  min-width: 92px;
+  padding: 10px 8px;
+  white-space: nowrap;
+}
+
+.annual-revenue-table th:first-child,
+.annual-revenue-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 170px;
+  background: var(--panel);
+}
+
+.annual-revenue-table thead th:first-child {
+  z-index: 2;
+}
+
+.annual-total-row td {
+  border-top: 2px solid var(--brand);
+  background: var(--panel-2);
+}
+
 .occupancy-bar-row {
   display: grid;
   grid-template-columns: 44px minmax(120px, 1fr) 48px;
