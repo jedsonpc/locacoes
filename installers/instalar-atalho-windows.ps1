@@ -96,12 +96,16 @@ function Open-Browser(`$target) {
   `$chrome = Get-Command "chrome.exe" -ErrorAction SilentlyContinue
 
   if (`$edge) {
-    Start-Process -FilePath `$edge.Source -ArgumentList "--start-maximized","--new-window",`$target
+    Add-Type -AssemblyName System.Windows.Forms
+    `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    Start-Process -FilePath `$edge.Source -ArgumentList "--start-maximized","--new-window","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)",`$target
     return
   }
 
   if (`$chrome) {
-    Start-Process -FilePath `$chrome.Source -ArgumentList "--start-maximized","--new-window",`$target
+    Add-Type -AssemblyName System.Windows.Forms
+    `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    Start-Process -FilePath `$chrome.Source -ArgumentList "--start-maximized","--new-window","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)",`$target
     return
   }
 

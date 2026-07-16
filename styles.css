@@ -525,14 +525,12 @@ h3 {
 .report-chart-scroll {
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   padding-bottom: 4px;
 }
 
 .report-chart-plot {
-  display: grid;
-  grid-template-columns: minmax(48px, auto) minmax(0, 1fr);
-  gap: 8px;
+  min-width: 0;
 }
 
 .report-chart-y-axis {
@@ -550,18 +548,18 @@ h3 {
 
 .report-chart-bars {
   display: grid;
-  grid-template-columns: repeat(var(--chart-columns), minmax(48px, 1fr));
+  grid-template-columns: repeat(var(--chart-columns), minmax(0, 1fr));
   align-items: end;
   gap: 7px;
-  min-width: max(100%, calc(var(--chart-columns) * 55px));
-  height: 196px;
-  padding: 3px 4px 0;
+  min-width: 0;
+  height: 330px;
+  padding: 120px 4px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .report-chart-column {
   display: grid;
-  grid-template-rows: 166px 26px;
+  grid-template-rows: 180px 26px;
   align-items: end;
   min-width: 0;
   text-align: center;
@@ -584,7 +582,8 @@ h3 {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 166px;
+  height: 180px;
+  overflow: visible;
   background: linear-gradient(to top, var(--panel-2), transparent);
   border-radius: 6px 6px 0 0;
 }
@@ -601,13 +600,17 @@ h3 {
   color: #ffffff;
   font-size: 0.62rem;
   font-style: normal;
-  overflow: hidden;
+  overflow: visible;
   text-align: center;
 }
 
 .report-chart-bar i b {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  line-height: 1;
+  max-height: none;
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -667,6 +670,37 @@ h3 {
   overflow: visible;
 }
 
+.annual-summary-table {
+  margin-bottom: 16px;
+  overflow: visible;
+}
+
+.annual-summary-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.annual-summary-table th,
+.annual-summary-table td {
+  text-align: right;
+}
+
+.annual-summary-table th:first-child,
+.annual-summary-table td:first-child {
+  text-align: left;
+}
+
+.annual-revenue-matrix {
+  overflow: visible;
+}
+
+.annual-revenue-matrix table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
 .annual-revenue-table table {
   width: 100%;
   min-width: 0;
@@ -677,10 +711,10 @@ h3 {
 .annual-revenue-table td {
   min-width: 0;
   padding: 8px 2px;
-  overflow: hidden;
-  font-size: clamp(0.5rem, 0.66vw, 0.7rem);
+  overflow: visible;
+  font-size: clamp(0.62rem, 0.8vw, 0.82rem);
   text-align: center;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -1581,4 +1615,26 @@ body.auth-pending .shell {
     box-shadow: none;
     padding: 0;
   }
+}
+
+@media print {
+  body.printing-reports { display: block; background: #fff; }
+  body.printing-reports .sidebar,
+  body.printing-reports .topbar,
+  body.printing-reports .update-banner,
+  body.printing-reports .contract-print-panel,
+  body.printing-reports .report-filter-panel,
+  body.printing-reports .toast { display: none !important; }
+  body.printing-reports .content { width: 100%; max-width: none; padding: 0; }
+  body.printing-reports[data-print-report]:not([data-print-report="all"]) [data-report-key] { display: none !important; }
+  body.printing-reports[data-print-report="comparison"] [data-report-key="comparison"],
+  body.printing-reports[data-print-report="kpis"] [data-report-key="kpis"],
+  body.printing-reports[data-print-report="evolution"] [data-report-key="evolution"],
+  body.printing-reports[data-print-report="annual"] [data-report-key="annual"],
+  body.printing-reports[data-print-report="detail"] [data-report-key="detail"],
+  body.printing-reports[data-print-report="brokers"] [data-report-key="brokers"],
+  body.printing-reports[data-print-report="expenses"] [data-report-key="expenses"] { display: block !important; }
+  body.printing-reports .report-paired-sections { display: block; }
+  body.printing-reports .panel,
+  body.printing-reports [data-report-key] { break-inside: avoid; }
 }

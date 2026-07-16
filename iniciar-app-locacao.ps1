@@ -1,51 +1,52 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Python = "C:\Users\Edson\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+$Port = 8770
+$Url = "http://127.0.0.1:$Port/login.html?v=2.1.40-relatorios-20260716"
+$PidFile = Join-Path $AppDir "locacoes-server.pid"
 
-if (-not (Test-Path -LiteralPath $Python)) {
-  $Python = "python"
-}
-
-function Test-PortFree {
-  param([int]$Port)
-  $listener = $null
+function Test-AppServer {
   try {
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse("127.0.0.1"), $Port)
-    $listener.Start()
-    return $true
+    $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 2
+    return $response.StatusCode -ge 200 -and $response.StatusCode -lt 500
   } catch {
     return $false
-  } finally {
-    if ($listener) {
-      $listener.Stop()
+  }
+}
+
+if (-not (Test-AppServer)) {
+  $pythonCommand = Get-Command "python.exe" -ErrorAction SilentlyContinue
+  if (-not $pythonCommand) {
+    $pythonCommand = Get-Command "py.exe" -ErrorAction SilentlyContinue
+  }
+  if (-not $pythonCommand) {
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show("Python nao foi encontrado para iniciar o aplicativo.", "Cupe Beach Living") | Out-Null
+    exit 1
+  }
+
+  $arguments = if ($pythonCommand.Name -eq "py.exe") {
+    @("-3", "-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", $AppDir)
+  } else {
+    @("-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", $AppDir)
+  }
+  $server = Start-Process -FilePath $pythonCommand.Source -ArgumentList $arguments -WorkingDirectory $AppDir -WindowStyle Hidden -PassThru
+  Set-Content -LiteralPath $PidFile -Value $server.Id -Encoding ASCII
+
+  $ready = $false
+  foreach ($attempt in 1..20) {
+    Start-Sleep -Milliseconds 150
+    if (Test-AppServer) {
+      $ready = $true
+      break
     }
   }
-}
-
-$Port = $null
-foreach ($candidate in 8770..8799) {
-  if (Test-PortFree -Port $candidate) {
-    $Port = $candidate
-    break
+  if (-not $ready) {
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show("Nao foi possivel iniciar o servidor local do aplicativo.", "Cupe Beach Living") | Out-Null
+    exit 1
   }
 }
-
-if (-not $Port) {
-  Write-Host "Nao encontrei uma porta livre entre 8770 e 8799."
-  pause
-  exit 1
-}
-
-$Url = "http://127.0.0.1:$Port/login.html"
-
-Write-Host "Cupe Beach Living"
-Write-Host "Pasta: $AppDir"
-Write-Host "Endereco: $Url"
-Write-Host ""
-Write-Host "Mantenha esta janela aberta enquanto estiver usando o app."
-Write-Host "Para encerrar o servidor, feche esta janela."
-Write-Host ""
 
 $browserCandidates = @(
   "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
@@ -54,17 +55,11 @@ $browserCandidates = @(
   "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
 )
 $browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-$openCommand = @"
-Start-Sleep -Milliseconds 900
-`$browserPath = '$browserPath'
-if (`$browserPath) {
-  Start-Process -FilePath `$browserPath -ArgumentList @('--start-maximized', '--new-window', '$Url')
+
+if ($browserPath) {
+  Add-Type -AssemblyName System.Windows.Forms
+  $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  Start-Process -FilePath $browserPath -ArgumentList @("--app=$Url", "--start-maximized", "--window-position=0,0", "--window-size=$($screen.Width),$($screen.Height)")
 } else {
-  Start-Process '$Url'
+  Start-Process $Url
 }
-"@
-Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-Command", $openCommand) -WindowStyle Hidden | Out-Null
-
-& $Python -m http.server $Port -d $AppDir
-
-
