@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1833";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1856";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -629,7 +629,7 @@ function dashboard() {
   const arrivals = state.contracts.filter((contract) => contract.checkIn >= todayIso() && contract.status !== "cancelada").sort((a, b) => a.checkIn.localeCompare(b.checkIn)).slice(0, 6);
   return `
     <section class="panel">
-      <div class="toolbar"><div><p class="eyebrow">Mes de referencia</p><h2>Resultado da temporada</h2></div><div class="filters"><label class="field">Mes<input id="dashboardMonth" type="month" value="${month}"></label><button class="primary-button" data-add="contracts" type="button">+ Nova reserva</button></div></div>
+      <div class="toolbar"><div><p class="eyebrow">Mes de referencia</p><h2>Resultado da temporada</h2></div><div class="filters"><label class="field">Mes<input id="dashboardMonth" type="month" value="${month}"></label></div></div>
       <div class="grid stats">
         ${metric("Receita no mes", money(m.revenue), `${m.contracts.length} contrato(s) no periodo`, "ok")}
         ${metric("Comissoes", money(m.commission), "corretores vinculados", "info")}
@@ -775,16 +775,14 @@ function calendarOperationalLines(event) {
   if (event.type === "checkout" || event.date !== contract.checkIn) return [];
   const lines = [];
   if (String(contract.checkInTime || "14:00") < "14:00") lines.push(`Entrada antecipada: ${contract.checkInTime}`);
-  const observation = String(contract.notes || contract.contractNotes || "").trim();
-  if (observation) lines.push(`Obs: ${observation}`);
   return lines;
 }
 
+function calendarReservationObservation(contract) {
+  return String(contract?.notes || contract?.contractNotes || "").trim();
+}
+
 function calendarBrokerLabel(contract, client) {
-  const clientName = normalizedText(client?.name);
-  const clientOrigin = normalizedText(client?.origin);
-  const shouldIdentifyBroker = clientName.includes("lancamento de registro") || clientName.includes("contato corretor") || clientOrigin.includes("corretor");
-  if (!shouldIdentifyBroker) return "";
   return getById("brokers", contract?.brokerId)?.name || "";
 }
 
@@ -1678,7 +1676,8 @@ function calendarWhatsappSummary(month, apartmentId = "") {
     const apt = getById("apartments", contract.apartmentId);
     const brokerName = calendarBrokerLabel(contract, client);
     const operational = calendarOperationalLines({ contract, type: "stay", date: contract.checkIn });
-    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)${brokerName ? ` - Corretor: ${shortName(brokerName)}` : ""}${operational.length ? ` - ${operational.join(" - ")}` : ""}`);
+    const observation = calendarReservationObservation(contract);
+    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)${brokerName ? ` - Corretor: ${shortName(brokerName)}` : ""}${operational.length ? ` - ${operational.join(" - ")}` : ""}${observation ? ` - Obs: ${observation}` : ""}`);
   });
   if (lines.length === 1 || (apartmentId && lines.length === 2)) lines.push("Sem reservas no periodo.");
   return lines.join("\n");
@@ -1879,7 +1878,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1833");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1856");
   return url.toString();
 }
 
@@ -1911,7 +1910,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1833");
+  location.replace("login.html?v=2.1.40-auto-20260716-1856");
 }
 
 async function handleSyncAction(action) {
@@ -2033,7 +2032,7 @@ document.addEventListener("click", (event) => {
 });
 
 document.querySelector("#recordForm").addEventListener("submit", submitForm);
-document.querySelector("#quickAddBtn").addEventListener("click", () => openForm(collectionLabels[route] ? route : "contracts"));
+document.querySelector("#quickAddBtn").addEventListener("click", () => openForm("contracts"));
 document.querySelector("#qrAccessBtn").addEventListener("click", openQrDialog);
 document.querySelector("#copyAccessLinkBtn").addEventListener("click", copyAccessLink);
 document.querySelector("#logoutBtn").addEventListener("click", logout);
