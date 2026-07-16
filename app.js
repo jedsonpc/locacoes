@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1337";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1353";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -903,13 +903,19 @@ function reportsView() {
   });
   const filterError = validPeriod ? "" : `<p class="report-filter-error">A data final precisa ser igual ou posterior a data inicial.</p>`;
   const printOptions = [["all", "Todos os relatorios"], ["kpis", "Resumo do periodo"], ["comparison", "Comparativo anual"], ["evolution", "Graficos de evolucao"], ["annual", "Faturamento anual por corretor"], ["detail", "Reservas detalhadas"], ["brokers", "Comissoes"], ["expenses", "Despesas"]];
-  return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
+  const scopeTag = reportScopeTag(apartmentId);
+  return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2>${scopeTag}</div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
     <div class="grid stats report-kpis" data-report-key="kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "mesmo periodo do ano anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "mesmo periodo do ano anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
-    <div data-report-key="comparison">${reportComparisonPanel(current, previous, previousStart, previousEnd)}</div>
-    <div data-report-key="evolution">${reportEvolutionPanel(buckets)}</div>
+    <div data-report-key="comparison">${reportComparisonPanel(current, previous, previousStart, previousEnd, apartmentId)}</div>
+    <div data-report-key="evolution">${reportEvolutionPanel(buckets, apartmentId)}</div>
     <div data-report-key="annual">${annualBrokerRevenuePanel(annualYear, apartmentId)}</div>
-    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2></div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
-    <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div></div>`;
+    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2>${scopeTag}</div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
+    <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2>${scopeTag}</div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2>${scopeTag}</div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div></div>`;
+}
+
+function reportScopeTag(apartmentId = "") {
+  const label = apartmentId ? (getById("apartments", apartmentId)?.name || "Imovel selecionado") : "Todos os imoveis";
+  return `<span class="report-scope-tag"><small>Escopo do relatorio</small><strong>${escapeHtml(label)}</strong></span>`;
 }
 
 function sameDatePreviousYear(isoDate) {
@@ -955,7 +961,7 @@ function reportDeltaText(current, previous, suffix) {
   return `${delta >= 0 ? "+" : ""}${delta}% vs. ${suffix}`;
 }
 
-function reportComparisonPanel(current, previous, previousStart, previousEnd) {
+function reportComparisonPanel(current, previous, previousStart, previousEnd, apartmentId = "") {
   const rows = [
     ["Reservas", current.reservations, previous.reservations, (value) => String(value)],
     ["Faturamento", current.revenue, previous.revenue, money]
@@ -963,7 +969,7 @@ function reportComparisonPanel(current, previous, previousStart, previousEnd) {
     const max = Math.max(1, currentValue, previousValue);
     return `<div class="comparison-row"><strong>${label}</strong><div class="comparison-series"><span>Atual</span><div class="comparison-track"><i class="current" style="width:${Math.round((currentValue / max) * 100)}%"></i></div><b>${formatter(currentValue)}</b></div><div class="comparison-series"><span>Anterior</span><div class="comparison-track"><i class="previous" style="width:${Math.round((previousValue / max) * 100)}%"></i></div><b>${formatter(previousValue)}</b></div></div>`;
   }).join("");
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Comparativo anual</p><h2>Periodo filtrado x mesmo periodo do ano anterior</h2></div><span class="muted">Ano anterior: ${dateBR(previousStart)} a ${dateBR(previousEnd)}</span></div><div class="comparison-list">${rows}</div></section>`;
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Comparativo anual</p><h2>Periodo filtrado x mesmo periodo do ano anterior</h2>${reportScopeTag(apartmentId)}</div><span class="muted">Ano anterior: ${dateBR(previousStart)} a ${dateBR(previousEnd)}</span></div><div class="comparison-list">${rows}</div></section>`;
 }
 
 function reportPeriodBuckets(start, end, contracts) {
@@ -1008,10 +1014,10 @@ function reportPeriodBuckets(start, end, contracts) {
   return buckets;
 }
 
-function reportEvolutionPanel(buckets) {
+function reportEvolutionPanel(buckets, apartmentId = "") {
   const nights = reportBarChart("Diarias ocupadas - dias unicos", buckets, "nights", (value) => String(Math.round(value)), (value) => `${Math.round(value)} dia(s) ocupado(s)`);
   const revenue = reportBarChart("Faturamento proporcional", buckets, "revenue", money, money);
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Evolucao</p><h2>Diarias e faturamento</h2></div></div><p class="muted block-help">Cada data e contada uma unica vez, mesmo quando ha mais de um imovel ocupado. O check-out nao conta como diaria. O faturamento e distribuido proporcionalmente pelas diarias ocupadas.</p><div class="report-chart-grid">${nights}${revenue}</div></section>`;
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Evolucao</p><h2>Diarias e faturamento</h2>${reportScopeTag(apartmentId)}</div></div><p class="muted block-help">Cada data e contada uma unica vez, mesmo quando ha mais de um imovel ocupado. O check-out nao conta como diaria. O faturamento e distribuido proporcionalmente pelas diarias ocupadas.</p><div class="report-chart-grid">${nights}${revenue}</div></section>`;
 }
 
 function reportBarChart(title, buckets, key, formatter, tooltipFormatter = formatter) {
@@ -1045,7 +1051,7 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
     .sort((a, b) => b.total - a.total || String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }));
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => brokerRows.reduce((sum, row) => sum + row.monthly[index], 0));
   const grandTotal = monthlyTotals.reduce((sum, value) => sum + value, 0);
-  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2></div><div class="filters">${yearFilter}</div></div>${empty("Nenhuma locacao vinculada a corretor no ano selecionado.")}</section>`;
+  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div>${empty("Nenhuma locacao vinculada a corretor no ano selecionado.")}</section>`;
   const totalDailyCount = brokerRows.reduce((sum, row) => sum + row.dailyCount, 0);
   const topBroker = brokerRows[0];
   const bestMonthIndex = monthlyTotals.reduce((best, value, index, values) => value > values[best] ? index : best, 0);
@@ -1057,7 +1063,7 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
   const rows = monthLabels.map((label, monthIndex) => `<tr><td><strong>${label}/${String(year).slice(-2)}</strong></td>${brokerRows.map((row) => `<td class="${row.monthly[monthIndex] ? "has-value" : "is-empty"}" title="${escapeHtml(money(row.monthly[monthIndex]))}">${row.monthly[monthIndex] ? valueFmt.format(row.monthly[monthIndex]) : "-"}</td>`).join("")}<td class="annual-month-total" title="${escapeHtml(money(monthlyTotals[monthIndex]))}"><strong>${monthlyTotals[monthIndex] ? valueFmt.format(monthlyTotals[monthIndex]) : "-"}</strong></td></tr>`).join("");
   const totalRow = `<tr class="annual-total-row"><td><strong>Total geral</strong></td>${brokerRows.map((row) => `<td title="${escapeHtml(money(row.total))}"><strong>${annualCompactValue(row.total)}</strong></td>`).join("")}<td title="${escapeHtml(money(grandTotal))}"><strong>${annualCompactValue(grandTotal)}</strong></td></tr>`;
   const mobileRows = [...brokerRows, { name: "Total geral", monthly: monthlyTotals, total: grandTotal, totalRow: true }].map((row) => `<article class="annual-mobile-broker ${row.totalRow ? "total" : ""}"><div><strong>${escapeHtml(row.name)}</strong><span>Total: ${money(row.total)}</span></div><dl class="annual-mobile-months">${row.monthly.map((value, index) => `<div><dt>${monthLabels[index]}</dt><dd>${annualCompactValue(value)}</dd></div>`).join("")}</dl></article>`).join("");
-  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2></div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Visao consolidada para diretoria e supervisao. Corretores ordenados por faturamento. Valores mensais em R$ e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal</span><strong>Faturamento por competencia e corretor</strong></div><small>Valores em R$</small></div><div class="annual-revenue-table annual-revenue-matrix"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
+  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Visao consolidada para diretoria e supervisao. Corretores ordenados por faturamento. Valores mensais em R$ e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal</span><strong>Faturamento por competencia e corretor</strong></div><small>Valores em R$</small></div><div class="annual-revenue-table annual-revenue-matrix"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
 }
 
 function isLeapYear(year) {
@@ -1807,7 +1813,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1337");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1353");
   return url.toString();
 }
 
@@ -1839,7 +1845,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1337");
+  location.replace("login.html?v=2.1.40-auto-20260716-1353");
 }
 
 async function handleSyncAction(action) {
@@ -2020,6 +2026,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

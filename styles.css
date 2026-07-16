@@ -507,6 +507,40 @@ h3 {
   font-weight: 800;
 }
 
+.report-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid rgba(15, 118, 110, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.09);
+  color: var(--brand);
+  line-height: 1.2;
+}
+
+.report-scope-tag small {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.report-scope-tag strong {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 680px) {
+  .report-scope-tag {
+    align-items: flex-start;
+    flex-direction: column;
+    border-radius: 8px;
+  }
+}
+
 .reports-page {
   width: 100%;
   max-width: 100%;
