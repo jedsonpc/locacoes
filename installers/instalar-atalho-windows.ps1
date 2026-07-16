@@ -8,7 +8,7 @@ $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
 $iconFile = Join-Path $installApp "cupe-beach-living.ico"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
 $appVersion = "2.1.40-auto-20260716-1311"
-$onlineUrl = "https://locacoes-publish.vercel.app/?v=local-$appVersion"
+$onlineUrl = "https://locacoes-publish.vercel.app/"
 $port = 8787
 
 if (!(Test-Path (Join-Path $packageRoot "index.html"))) {
