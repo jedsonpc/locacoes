@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1725";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1801";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -274,6 +274,7 @@ function normalizeClient(client = {}) {
 function normalizeContract(contract = {}) {
   const received = toNumber(contract.deposit);
   const securityDeposit = contract.securityDeposit === undefined || contract.securityDeposit === "" ? 300 : toNumber(contract.securityDeposit);
+  const legacyCompletedStay = contract.isAirbnb === undefined && String(contract.checkOut || "") < todayIso();
   return {
     ...contract,
     commissionAlreadyDeducted: contract.commissionAlreadyDeducted === true || contract.commissionAlreadyDeducted === "sim" ? "sim" : "nao",
@@ -282,7 +283,9 @@ function normalizeContract(contract = {}) {
     checkOutTime: contract.checkOutTime || "11:00",
     securityDeposit,
     firstPayment: received + securityDeposit,
-    paymentConfirmed: contract.paymentConfirmed === "sim" || contract.paymentStatus === "pago" ? "sim" : "nao",
+    paymentStatus: legacyCompletedStay ? "pago" : (contract.paymentStatus || "pendente"),
+    paymentConfirmed: legacyCompletedStay || contract.paymentConfirmed === "sim" || contract.paymentStatus === "pago" ? "sim" : "nao",
+    isAirbnb: contract.isAirbnb === "sim" ? "sim" : "nao",
     firstPaymentDate: contract.firstPaymentDate || "",
     balanceDueDate: contract.balanceDueDate || contract.checkIn || "",
     issueDate: contract.issueDate || todayIso(),
@@ -597,16 +600,21 @@ function dashboard() {
       };
     });
   const paymentAlerts = state.contracts
-    .filter((contract) => contract.status !== "cancelada" && String(contract.checkOut || "") >= today && contract.paymentStatus !== "pago" && contract.paymentConfirmed !== "sim")
+    .filter((contract) => {
+      if (contract.status === "cancelada" || contract.paymentStatus === "pago" || contract.paymentConfirmed === "sim") return false;
+      if (contract.isAirbnb === "sim") return today >= String(contract.checkOut || "");
+      return String(contract.checkOut || "") >= today;
+    })
     .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)))
     .map((contract) => {
       const apartment = getById("apartments", contract.apartmentId)?.name || "Apartamento";
       const client = getById("clients", contract.clientId)?.name || "Cliente nao informado";
+      const isAirbnb = contract.isAirbnb === "sim";
       const stayStarted = String(contract.checkIn || "") <= today;
       return {
-        title: `${stayStarted ? "Pagamento nao confirmado" : "Confirmar pagamento ate o check-in"} - ${apartment}`,
-        text: `${client} - hospedagem de ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}`,
-        cls: stayStarted ? "danger" : "warn"
+        title: `${isAirbnb ? "Confirmar repasse do Airbnb" : stayStarted ? "Pagamento nao confirmado" : "Confirmar pagamento ate o check-in"} - ${apartment}`,
+        text: `${client} - hospedagem de ${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}${isAirbnb ? " - repasse apos a hospedagem" : ""}`,
+        cls: isAirbnb || stayStarted ? "danger" : "warn"
       };
     });
   const occupancyAlerts = [
@@ -1242,7 +1250,7 @@ function fieldsFor(collection, record = {}) {
       ["name", "Nome", "text", null, true], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["commissionDefault", "Comissao padrao (%)", "number"], ["status", "Status", "select", [["ativo", "Ativo"], ["inativo", "Inativo"]]], ["notes", "Observacoes", "textarea"]
     ],
     contracts: [
-      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]], false, "pendente"], ["paymentConfirmed", "Checklist: pagamento integral confirmado", "checkbox", null, false, record.paymentStatus === "pago" ? "sim" : "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal (recebido + caucao)", "number", null, false, toNumber(record.deposit) + toNumber(record.securityDeposit), true], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
+      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]], false, "pendente"], ["isAirbnb", "Reserva atraves do Airbnb", "checkbox", null, false, "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal (recebido + caucao)", "number", null, false, toNumber(record.deposit) + toNumber(record.securityDeposit), true], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     expenses: [
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
@@ -1864,7 +1872,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1725");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1801");
   return url.toString();
 }
 
@@ -1896,7 +1904,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1725");
+  location.replace("login.html?v=2.1.40-auto-20260716-1801");
 }
 
 async function handleSyncAction(action) {
