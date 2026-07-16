@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1531";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1549";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -1036,7 +1036,6 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
   const contracts = state.contracts.filter((contract) => contract.status !== "cancelada" && String(contract.checkIn || "").startsWith(`${year}-`) && (!apartmentId || contract.apartmentId === apartmentId));
   const knownBrokerIds = new Set(state.brokers.map((broker) => broker.id));
   const assignedContracts = contracts.filter((contract) => contract.brokerId && knownBrokerIds.has(contract.brokerId));
-  const unassignedContracts = contracts.filter((contract) => !contract.brokerId || !knownBrokerIds.has(contract.brokerId));
   const contractsForBroker = (brokerId) => assignedContracts.filter((contract) => contract.brokerId === brokerId);
   const brokerRows = [...state.brokers]
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
@@ -1054,13 +1053,11 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
     .sort((a, b) => b.total - a.total || String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }));
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => brokerRows.reduce((sum, row) => sum + row.monthly[index], 0));
   const grandTotal = monthlyTotals.reduce((sum, value) => sum + value, 0);
-  const unassignedTotal = unassignedContracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
-  const portfolioTotal = grandTotal + unassignedTotal;
-  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div>${empty(unassignedTotal ? `Nao ha faturamento vinculado a corretor. Faturamento sem corretor: ${money(unassignedTotal)}.` : "Nenhuma locacao encontrada no ano e escopo selecionados.")}</section>`;
+  if (!brokerRows.length) return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Analise anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div>${empty("Nenhuma locacao encontrada no ano e escopo selecionados.")}</section>`;
   const totalDailyCount = brokerRows.reduce((sum, row) => sum + row.dailyCount, 0);
   const topBroker = brokerRows[0];
   const bestMonthIndex = monthlyTotals.reduce((best, value, index, values) => value > values[best] ? index : best, 0);
-  const executiveKpis = `<div class="annual-executive-kpis"><article><span>Faturamento por corretores</span><strong>${money(grandTotal)}</strong><small>${totalDailyCount} diaria(s) vinculada(s)</small></article><article><span>Lider de faturamento</span><strong>${escapeHtml(topBroker.name)}</strong><small>${money(topBroker.total)} - ${percent(grandTotal ? topBroker.total / grandTotal : 0)}</small></article><article><span>Sem corretor</span><strong>${money(unassignedTotal)}</strong><small>fora do ranking e da melhor competencia</small></article><article><span>Melhor competencia por corretor</span><strong>${monthLabels[bestMonthIndex]}/${year}</strong><small>${money(monthlyTotals[bestMonthIndex])}</small></article></div>`;
+  const executiveKpis = `<div class="annual-executive-kpis"><article><span>Faturamento por corretores</span><strong>${money(grandTotal)}</strong><small>${totalDailyCount} diaria(s) vinculada(s)</small></article><article><span>Lider de faturamento</span><strong>${escapeHtml(topBroker.name)}</strong><small>${money(topBroker.total)} - ${percent(grandTotal ? topBroker.total / grandTotal : 0)}</small></article><article><span>Melhor competencia</span><strong>${monthLabels[bestMonthIndex]}/${year}</strong><small>${money(monthlyTotals[bestMonthIndex])}</small></article></div>`;
   const summaryHeader = ["Posicao", "Corretor", "Diarias", "Valor faturado", "Valor medio", "Participacao", "Dias no ano"].map((label) => `<th>${label}</th>`).join("");
   const summaryRows = brokerRows.map((row, index) => `<tr><td><span class="annual-rank">${index + 1}º</span></td><td><strong>${escapeHtml(row.name)}</strong></td><td>${row.dailyCount}</td><td><strong>${money(row.total)}</strong></td><td>${money(row.dailyCount ? row.total / row.dailyCount : 0)}</td><td><strong>${percent(grandTotal ? row.total / grandTotal : 0)}</strong></td><td>${percent(row.dailyCount / (isLeapYear(Number(year)) ? 366 : 365))}</td></tr>`).join("");
   const summaryTotal = `<tr class="annual-total-row"><td></td><td><strong>Total geral</strong></td><td><strong>${totalDailyCount}</strong></td><td><strong>${money(grandTotal)}</strong></td><td><strong>${money(totalDailyCount ? grandTotal / totalDailyCount : 0)}</strong></td><td><strong>100%</strong></td><td><strong>${percent(totalDailyCount / (isLeapYear(Number(year)) ? 366 : 365))}</strong></td></tr>`;
@@ -1068,7 +1065,7 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
   const rows = monthLabels.map((label, monthIndex) => `<tr><td><strong>${label}/${String(year).slice(-2)}</strong></td>${brokerRows.map((row) => `<td class="${row.monthly[monthIndex] ? "has-value" : "is-empty"}" title="${escapeHtml(money(row.monthly[monthIndex]))}">${row.monthly[monthIndex] ? valueFmt.format(row.monthly[monthIndex]) : "-"}</td>`).join("")}<td class="annual-month-total" title="${escapeHtml(money(monthlyTotals[monthIndex]))}"><strong>${monthlyTotals[monthIndex] ? valueFmt.format(monthlyTotals[monthIndex]) : "-"}</strong></td></tr>`).join("");
   const totalRow = `<tr class="annual-total-row"><td><strong>Total geral</strong></td>${brokerRows.map((row) => `<td title="${escapeHtml(money(row.total))}"><strong>${annualCompactValue(row.total)}</strong></td>`).join("")}<td title="${escapeHtml(money(grandTotal))}"><strong>${annualCompactValue(grandTotal)}</strong></td></tr>`;
   const mobileRows = [...brokerRows, { name: "Total geral", monthly: monthlyTotals, total: grandTotal, totalRow: true }].map((row) => `<article class="annual-mobile-broker ${row.totalRow ? "total" : ""}"><div><strong>${escapeHtml(row.name)}</strong><span>Total: ${money(row.total)}</span></div><dl class="annual-mobile-months">${row.monthly.map((value, index) => `<div><dt>${monthLabels[index]}</dt><dd>${annualCompactValue(value)}</dd></div>`).join("")}</dl></article>`).join("");
-  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Ranking, matriz e melhor competencia consideram somente reservas vinculadas a um corretor cadastrado. O faturamento sem corretor e exibido separadamente e nao altera esses indicadores. Total do escopo: ${money(portfolioTotal)}. Valores mensais em R$ e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal reconciliada</span><strong>Faturamento por competencia e corretor</strong></div><small>Com corretor: ${money(grandTotal)} | Sem corretor: ${money(unassignedTotal)}</small></div><div class="annual-revenue-table annual-revenue-matrix"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
+  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Visao consolidada do faturamento vinculado aos corretores cadastrados. Valores mensais em R$ e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal reconciliada</span><strong>Faturamento por competencia e corretor</strong></div><small>Total da matriz: ${money(grandTotal)}</small></div><div class="annual-revenue-table annual-revenue-matrix"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
 }
 
 function isLeapYear(year) {
@@ -1818,7 +1815,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1531");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1549");
   return url.toString();
 }
 
@@ -1850,7 +1847,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1531");
+  location.replace("login.html?v=2.1.40-auto-20260716-1549");
 }
 
 async function handleSyncAction(action) {

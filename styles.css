@@ -762,7 +762,7 @@ h3 {
 
 .annual-executive-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 18px 0;
 }
@@ -849,16 +849,6 @@ h3 {
   background: var(--panel-2);
   color: var(--brand);
   font-weight: 900;
-}
-
-.annual-summary-table .annual-unassigned-row td {
-  background: #fff7ed;
-  color: #9a3412;
-}
-
-.annual-summary-table .annual-unassigned-row .annual-rank {
-  background: #ffedd5;
-  color: #c2410c;
 }
 
 .annual-revenue-matrix {
