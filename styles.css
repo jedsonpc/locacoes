@@ -1314,6 +1314,16 @@ th {
   color: #9a3412;
 }
 
+.event.has-alert {
+  box-shadow: inset 0 0 0 1px #f59e0b;
+}
+
+.event .event-alert {
+  padding-top: 2px;
+  color: #9a3412;
+  white-space: normal;
+}
+
 .score-row {
   display: grid;
   gap: 8px;
