@@ -507,6 +507,49 @@ h3 {
   font-weight: 800;
 }
 
+.reports-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.reports-page > *,
+.reports-page [data-report-key],
+.reports-page .panel,
+.reports-page .grid,
+.reports-page .toolbar,
+.reports-page .filters {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.reports-page .filters {
+  flex-wrap: wrap;
+}
+
+.reports-page .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: visible;
+}
+
+.reports-page .table-wrap table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.reports-page .table-wrap th,
+.reports-page .table-wrap td {
+  min-width: 0;
+  padding-left: 6px;
+  padding-right: 6px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: normal;
+}
+
 .report-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

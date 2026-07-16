@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1324";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1337";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -903,13 +903,13 @@ function reportsView() {
   });
   const filterError = validPeriod ? "" : `<p class="report-filter-error">A data final precisa ser igual ou posterior a data inicial.</p>`;
   const printOptions = [["all", "Todos os relatorios"], ["kpis", "Resumo do periodo"], ["comparison", "Comparativo anual"], ["evolution", "Graficos de evolucao"], ["annual", "Faturamento anual por corretor"], ["detail", "Reservas detalhadas"], ["brokers", "Comissoes"], ["expenses", "Despesas"]];
-  return contractReportPanel() + `<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
+  return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2></div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
     <div class="grid stats report-kpis" data-report-key="kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "mesmo periodo do ano anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "mesmo periodo do ano anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
     <div data-report-key="comparison">${reportComparisonPanel(current, previous, previousStart, previousEnd)}</div>
     <div data-report-key="evolution">${reportEvolutionPanel(buckets)}</div>
     <div data-report-key="annual">${annualBrokerRevenuePanel(annualYear, apartmentId)}</div>
     <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2></div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section>
-    <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>`;
+    <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2></div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2></div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div></div>`;
 }
 
 function sameDatePreviousYear(isoDate) {
@@ -1807,7 +1807,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1324");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1337");
   return url.toString();
 }
 
@@ -1839,7 +1839,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1324");
+  location.replace("login.html?v=2.1.40-auto-20260716-1337");
 }
 
 async function handleSyncAction(action) {
@@ -2020,6 +2020,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
