@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1801";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1828";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -474,17 +474,21 @@ function saveState(reason = "manual") {
 
 function contractTotals(contract) {
   const stayNights = nights(contract.checkIn, contract.checkOut);
-  const lodging = stayNights * toNumber(contract.dailyRate);
   const cleaning = toNumber(contract.cleaningFee);
   const discount = toNumber(contract.discount);
-  const total = Math.max(0, lodging + cleaning - discount);
+  const calculatedLodging = stayNights * toNumber(contract.dailyRate);
+  const declaredTotal = toNumber(contract.reservationTotal);
+  const total = declaredTotal > 0 ? declaredTotal : Math.max(0, calculatedLodging + cleaning - discount);
+  const lodging = Math.max(0, total - cleaning + discount);
   const commission = total * (contractBrokerPercent(contract) / 100);
   const received = toNumber(contract.deposit);
   return { stayNights, lodging, cleaning, discount, total, commission, received, pending: Math.max(0, total - received) };
 }
 
 function monthlyContractRevenue(contract, month) {
-  return occupancyDays(contract, month) * toNumber(contract.dailyRate);
+  const occupiedNights = occupancyDays(contract, month);
+  const totalNights = Math.max(1, nights(contract.checkIn, contract.checkOut));
+  return contractTotals(contract).total * (occupiedNights / totalNights);
 }
 
 function contractTouchesMonth(contract, month) {
@@ -1872,7 +1876,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1801");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1828");
   return url.toString();
 }
 
@@ -1904,7 +1908,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1801");
+  location.replace("login.html?v=2.1.40-auto-20260716-1828");
 }
 
 async function handleSyncAction(action) {

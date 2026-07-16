@@ -1129,6 +1129,14 @@ th {
   margin-bottom: 0;
 }
 
+.list-row > .status {
+  flex: 0 0 auto;
+  align-self: center;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  word-break: normal;
+}
+
 .apartment-card {
   display: grid;
   gap: 10px;
