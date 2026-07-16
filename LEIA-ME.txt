@@ -1,19 +1,18 @@
 LOCACOES - GESTAO DE EXCELENCIA
 
-Para abrir com melhor funcionamento:
-1. Clique duas vezes em abrir-app-locacao.bat ou abrir-app-locação.bat
-2. O sistema encontrara uma porta livre e abrira o navegador automaticamente.
+Forma recomendada de acesso:
+1. Execute instalar-atalho-windows.bat.
+2. Use o atalho "Cupe Beach Living" criado na Area de Trabalho ou no Menu Iniciar.
+3. Com internet, o atalho abre diretamente a versao oficial na Vercel.
+4. Sem internet, a copia local instalada fica disponivel como contingencia.
 
-Para criar atalho na Area de Trabalho:
-1. Clique duas vezes em instalar-atalho-area-trabalho.bat
-2. Use o atalho "Locacoes" criado na Area de Trabalho.
-3. O atalho instala o app em %LOCALAPPDATA%\LocacoesApp, abre em modo aplicativo e valida o acesso pelo Supabase.
+O instalador copia o app para %LOCALAPPDATA%\LocacoesApp, cria os atalhos e abre o sistema em modo aplicativo.
 
 Acesso online:
-- App: https://jedsonpc.github.io/locacoes/
+- App oficial: https://locacoes-publish.vercel.app/
 - Supabase usuarios: https://supabase.com/dashboard/project/afwynugokyejfbrtyobk/auth/users
 
-O app tambem abre pelo index.html, mas o modo servidor local ativa melhor os recursos PWA/offline.
+O acesso pela Vercel e o modo principal. A copia local deve ser usada apenas quando o acesso online estiver indisponivel.
 
 Principais modulos:
 - Painel executivo
@@ -38,4 +37,4 @@ Supabase:
 2. O login inicial usa usuarios cadastrados em Authentication > Users.
 3. Apos entrar, a sincronizacao em nuvem fica ativa para o usuario validado.
 
-Os dados ficam salvos no navegador deste dispositivo. Use Gestao > Baixar backup JSON antes de grandes alteracoes.
+Os dados ficam sincronizados pelo Supabase e tambem podem ser mantidos no navegador. Use Gestao > Baixar backup JSON antes de grandes alteracoes.

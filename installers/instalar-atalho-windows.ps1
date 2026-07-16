@@ -7,7 +7,8 @@ $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
 $iconFile = Join-Path $installApp "cupe-beach-living.ico"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
-$appVersion = "2.1.38"
+$appVersion = "2.1.40-auto-20260716-1311"
+$onlineUrl = "https://locacoes-publish.vercel.app/?v=local-$appVersion"
 $port = 8787
 
 if (!(Test-Path (Join-Path $packageRoot "index.html"))) {
@@ -86,7 +87,8 @@ while (`$true) {
 
 `$AppDir = Join-Path `$PSScriptRoot "app"
 `$LoginFile = Join-Path `$AppDir "login.html"
-`$Url = "http://127.0.0.1:$port/login.html?v=$appVersion"
+`$OnlineUrl = "$onlineUrl"
+`$LocalUrl = "http://127.0.0.1:$port/login.html?v=$appVersion"
 `$PidFile = Join-Path `$PSScriptRoot "locacoes-server.pid"
 `$BundledPython = "C:\Users\Edson\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 `$ServerScript = Join-Path `$PSScriptRoot "servidor-locacoes.ps1"
@@ -98,14 +100,14 @@ function Open-Browser(`$target) {
   if (`$edge) {
     Add-Type -AssemblyName System.Windows.Forms
     `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    Start-Process -FilePath `$edge.Source -ArgumentList "--start-maximized","--new-window","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)",`$target
+    Start-Process -FilePath `$edge.Source -ArgumentList "--start-maximized","--app=`$target","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)"
     return
   }
 
   if (`$chrome) {
     Add-Type -AssemblyName System.Windows.Forms
     `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    Start-Process -FilePath `$chrome.Source -ArgumentList "--start-maximized","--new-window","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)",`$target
+    Start-Process -FilePath `$chrome.Source -ArgumentList "--start-maximized","--app=`$target","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)"
     return
   }
 
@@ -114,11 +116,25 @@ function Open-Browser(`$target) {
 
 function Test-LocalServer {
   try {
-    `$response = Invoke-WebRequest -Uri `$Url -UseBasicParsing -TimeoutSec 2
+    `$response = Invoke-WebRequest -Uri `$LocalUrl -UseBasicParsing -TimeoutSec 2
     return `$response.StatusCode -ge 200 -and `$response.StatusCode -lt 500
   } catch {
     return `$false
   }
+}
+
+function Test-OnlineApp {
+  try {
+    `$response = Invoke-WebRequest -Uri "https://locacoes-publish.vercel.app/version.json?_=`$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -UseBasicParsing -TimeoutSec 5
+    return `$response.StatusCode -eq 200
+  } catch {
+    return `$false
+  }
+}
+
+if (Test-OnlineApp) {
+  Open-Browser `$OnlineUrl
+  exit 0
 }
 
 if (!(Test-Path `$LoginFile)) {
@@ -155,7 +171,7 @@ if (!(Test-LocalServer)) {
 }
 
 if (Test-LocalServer) {
-  Open-Browser `$Url
+  Open-Browser `$LocalUrl
 } else {
   Open-Browser `$LoginFile
 }
