@@ -515,6 +515,7 @@ h3 {
 
 .report-chart {
   min-width: 0;
+  overflow: visible;
 }
 
 .report-chart h3 {
@@ -552,14 +553,14 @@ h3 {
   align-items: end;
   gap: 7px;
   min-width: 0;
-  height: 330px;
-  padding: 120px 4px 0;
+  height: 360px;
+  padding: 130px 4px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .report-chart-column {
   display: grid;
-  grid-template-rows: 180px 26px;
+  grid-template-rows: 204px 26px;
   align-items: end;
   min-width: 0;
   text-align: center;
@@ -582,7 +583,8 @@ h3 {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 180px;
+  position: relative;
+  height: 204px;
   overflow: visible;
   background: linear-gradient(to top, var(--panel-2), transparent);
   border-radius: 6px 6px 0 0;
@@ -604,14 +606,25 @@ h3 {
   text-align: center;
 }
 
-.report-chart-bar i b {
-  display: block;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+.report-chart-value {
+  position: absolute;
+  bottom: calc((var(--bar-height) * 1%) + 8px);
+  left: 50%;
+  z-index: 2;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 900;
   line-height: 1;
-  max-height: none;
-  overflow: visible;
+  transform: translateX(-50%);
   white-space: nowrap;
+}
+
+.report-chart--revenue .report-chart-value {
+  bottom: calc((var(--bar-height) * 1%) + 44px);
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
 }
 
 .comparison-list {
@@ -670,6 +683,58 @@ h3 {
   overflow: visible;
 }
 
+.annual-executive-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.annual-executive-kpis article {
+  display: grid;
+  gap: 5px;
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--brand);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #ffffff, var(--panel-2));
+}
+
+.annual-executive-kpis span,
+.annual-executive-kpis small,
+.annual-section-title span,
+.annual-section-title small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.annual-executive-kpis strong {
+  align-self: center;
+  font-size: clamp(1rem, 1.35vw, 1.35rem);
+  line-height: 1.15;
+}
+
+.annual-section-title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand);
+}
+
+.annual-section-title div {
+  display: grid;
+  gap: 2px;
+}
+
+.annual-section-title strong {
+  font-size: 1rem;
+}
+
 .annual-summary-table {
   margin-bottom: 16px;
   overflow: visible;
@@ -683,12 +748,30 @@ h3 {
 
 .annual-summary-table th,
 .annual-summary-table td {
+  padding: 10px 7px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.annual-summary-table th:nth-child(2),
+.annual-summary-table td:nth-child(2) {
+  text-align: left;
 }
 
 .annual-summary-table th:first-child,
 .annual-summary-table td:first-child {
-  text-align: left;
+  text-align: center;
+}
+
+.annual-rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--brand);
+  font-weight: 900;
 }
 
 .annual-revenue-matrix {
@@ -710,12 +793,39 @@ h3 {
 .annual-revenue-table th,
 .annual-revenue-table td {
   min-width: 0;
-  padding: 8px 2px;
+  padding: 10px 4px;
   overflow: visible;
-  font-size: clamp(0.62rem, 0.8vw, 0.82rem);
+  font-size: clamp(0.68rem, 0.82vw, 0.88rem);
+  font-variant-numeric: tabular-nums;
   text-align: center;
   text-overflow: clip;
   white-space: nowrap;
+}
+
+.annual-revenue-table th {
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.annual-revenue-table tbody tr:nth-child(even) td {
+  background: rgba(15, 118, 110, 0.035);
+}
+
+.annual-revenue-table td.has-value {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.annual-revenue-table td.is-empty {
+  color: #a8b0bd;
+}
+
+.annual-revenue-table .annual-month-total,
+.annual-revenue-table th:last-child,
+.annual-revenue-table td:last-child {
+  background: var(--panel-2);
+  color: var(--brand);
+  font-weight: 900;
 }
 
 .annual-revenue-table th:first-child,
@@ -1371,6 +1481,10 @@ th {
   .institutional-hero { align-items: stretch; flex-direction: column; }
   .institutional-version { min-width: 0; }
 
+  .annual-executive-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -1392,6 +1506,9 @@ th {
 }
 
 @media (max-width: 680px) {
+  .annual-executive-kpis {
+    grid-template-columns: 1fr;
+  }
   .annual-revenue-table {
     display: none;
   }
