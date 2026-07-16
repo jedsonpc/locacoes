@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1856";
+const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1901";
 const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -703,7 +703,7 @@ function contracts() {
     .sort((a, b) => String(b.createdAt || b.checkIn || "").localeCompare(String(a.createdAt || a.checkIn || "")) || String(b.checkOut || "").localeCompare(String(a.checkOut || "")));
   const items = hasFilters ? ordered : ordered.slice(0, 5);
   const listInfo = hasFilters ? `${items.length} reserva(s) encontrada(s)` : `Exibindo os ${Math.min(5, ordered.length)} registros mais recentes`;
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="primary-button" data-add="contracts" type="button">+ Nova reserva</button><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Periodo inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Periodo final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
+  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Periodo inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Periodo final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
 }
 
 function contractRow(contract, activeMonth = state.settings.reportMonth || state.settings.month || monthIso()) {
@@ -1238,7 +1238,9 @@ function optionList(collection, selected, emptyLabel = "Selecione") {
 
 function fieldsFor(collection, record = {}) {
   const aptOptions = () => state.apartments.map((apt) => [apt.id, apt.name]);
-  const clientOptions = () => state.clients.map((client) => [client.id, client.name]);
+  const clientOptions = () => [...state.clients]
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .map((client) => [client.id, client.name]);
   const brokerOptions = () => [...state.brokers]
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
     .map((broker) => [broker.id, broker.name]);
@@ -1878,7 +1880,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1856");
+  url.searchParams.set("v", "2.1.40-auto-20260716-1901");
   return url.toString();
 }
 
@@ -1910,7 +1912,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1856");
+  location.replace("login.html?v=2.1.40-auto-20260716-1901");
 }
 
 async function handleSyncAction(action) {
