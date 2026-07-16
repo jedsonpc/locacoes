@@ -851,6 +851,16 @@ h3 {
   font-weight: 900;
 }
 
+.annual-summary-table .annual-unassigned-row td {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.annual-summary-table .annual-unassigned-row .annual-rank {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 .annual-revenue-matrix {
   overflow: visible;
 }
