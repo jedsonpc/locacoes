@@ -2,8 +2,8 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.40-auto-20260716-1901";
-const APP_CHANGE_DATE_LABEL = "Alterado em 14/07/2026";
+const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1156";
+const APP_CHANGE_DATE_LABEL = "Alterado em 17/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
 
@@ -24,7 +24,7 @@ const navItems = [
   ["contracts", "Reservas e Contratos", "C", "Reservas e estadias"],
   ["calendar", "Calendario", "A", "Ocupacao mensal"],
   ["apartments", "Apartamentos", "I", "Unidades e Capacidade"],
-  ["clients", "Clientes", "H", "Hospedagem e Origem"],
+  ["clients", "Hóspedes", "H", "Cadastro e origem"],
   ["brokers", "Corretores", "R", "Comissoes"],
   ["expenses", "Despesas", "$", "Custo por unidade"],
   ["reports", "Relatorios", "D", "Resultado e indicadores"],
@@ -34,7 +34,7 @@ const navItems = [
 
 const collectionLabels = {
   apartments: ["apartamento", "Apartamentos"],
-  clients: ["cliente", "Clientes"],
+  clients: ["hóspede", "Hóspedes"],
   brokers: ["corretor", "Corretores"],
   contracts: ["contrato", "Contratos"],
   expenses: ["despesa", "Despesas"]
@@ -387,7 +387,7 @@ function migrateLongTermState(oldState, base) {
 
   const clients = Array.isArray(oldState.clients) ? oldState.clients.map((client) => ({
     id: client.id || uid(),
-    name: client.name || "Cliente",
+    name: client.name || "Hóspede",
     document: client.document || "",
     phone: client.phone || "",
     email: client.email || "",
@@ -595,7 +595,7 @@ function dashboard() {
     .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)))
     .map((contract) => {
       const apartment = getById("apartments", contract.apartmentId)?.name || "Apartamento";
-      const client = getById("clients", contract.clientId)?.name || "Cliente nao informado";
+      const client = getById("clients", contract.clientId)?.name || "Hóspede não informado";
       const isToday = contract.checkIn === today;
       return {
         title: isToday ? `Check-in hoje - ${apartment}` : `Check-in amanha - ${apartment}`,
@@ -612,7 +612,7 @@ function dashboard() {
     .sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)))
     .map((contract) => {
       const apartment = getById("apartments", contract.apartmentId)?.name || "Apartamento";
-      const client = getById("clients", contract.clientId)?.name || "Cliente nao informado";
+      const client = getById("clients", contract.clientId)?.name || "Hóspede não informado";
       const isAirbnb = contract.isAirbnb === "sim";
       const stayStarted = String(contract.checkIn || "") <= today;
       return {
@@ -655,7 +655,7 @@ function dashboard() {
 
 function arrivalRow(contract) {
   const totals = contractTotals(contract);
-  return `<div class="list-row"><div><strong>${dateBR(contract.checkIn)} - ${getById("clients", contract.clientId)?.name || "Cliente"}</strong><p class="muted">${getById("apartments", contract.apartmentId)?.name || "Apartamento"} - ${totals.stayNights} diaria(s) - ${money(totals.total)}</p></div><span class="status ${statusClass(contract.status)}">${contract.status}</span></div>`;
+  return `<div class="list-row"><div><strong>${dateBR(contract.checkIn)} - ${getById("clients", contract.clientId)?.name || "Hóspede"}</strong><p class="muted">${getById("apartments", contract.apartmentId)?.name || "Apartamento"} - ${totals.stayNights} diária(s) - ${money(totals.total)}</p></div><span class="status ${statusClass(contract.status)}">${contract.status}</span></div>`;
 }
 
 function alertRow(item) {
@@ -677,7 +677,7 @@ function apartments() {
 }
 
 function clients() {
-  return tableView("clients", "Clientes", ["Cliente", "Contato", "Endereco", "Origem", "Acoes"], (client) => [escapeHtml(client.name), `${escapeHtml(client.phone || "-")}<br>${escapeHtml(client.email || "")}<br>${escapeHtml(client.document || "")}`, escapeHtml(client.address || "-"), escapeHtml(client.origin || "-"), actions("clients", client.id)]);
+  return `<div class="guests-page">${tableView("clients", "Hóspedes", ["Hóspede", "Contato", "Endereço", "Origem", "Ações"], (client) => [escapeHtml(client.name), `<span class="contact-details">${escapeHtml(client.phone || "-")}<br>${escapeHtml(client.email || "")}<br>${escapeHtml(client.document || "")}</span>`, escapeHtml(client.address || "-"), escapeHtml(client.origin || "-"), actions("clients", client.id)])}</div>`;
 }
 
 function brokers() {
@@ -703,19 +703,19 @@ function contracts() {
     .sort((a, b) => String(b.createdAt || b.checkIn || "").localeCompare(String(a.createdAt || a.checkIn || "")) || String(b.checkOut || "").localeCompare(String(a.checkOut || "")));
   const items = hasFilters ? ordered : ordered.slice(0, 5);
   const listInfo = hasFilters ? `${items.length} reserva(s) encontrada(s)` : `Exibindo os ${Math.min(5, ordered.length)} registros mais recentes`;
-  return `<section class="panel"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Periodo inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Periodo final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Periodo", "Cliente", "Apartamento", "Proprietario", "Hospedes", "Financeiro", "Status", "Acoes"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
+  return `<section class="panel reservations-page"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Período inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Período final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Período", "Hóspede", "Apartamento", "Proprietário", "Hóspedes", "Financeiro", "Status", "Ações"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
 }
 
 function contractRow(contract, activeMonth = state.settings.reportMonth || state.settings.month || monthIso()) {
   const totals = contractTotals(contract);
   const monthRevenue = monthlyContractRevenue(contract, activeMonth);
   return [
-    `${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}<br>${totals.stayNights} diaria(s)`,
+    `<span class="reservation-period">${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}<br>${totals.stayNights} diária(s)</span>`,
     escapeHtml(getById("clients", contract.clientId)?.name || "-"),
     `${escapeHtml(getById("apartments", contract.apartmentId)?.name || "-")}${hasConflict(contract) ? `<br><span class="status danger">Conflito</span>` : ""}`,
     escapeHtml(apartmentOwnerName(getById("apartments", contract.apartmentId))),
-    `${contract.guests || 0} adulto(s)<br>${contract.children || 0} crianca(s), pet: ${contract.pets || "nao"}`,
-    `Mes: ${money(monthRevenue)}<br>Total reserva: ${money(totals.total)}<br>Comissao mes: ${money(monthRevenue * (contractBrokerPercent(contract) / 100))}`,
+    `${contract.guests || 0} adulto(s)<br>${contract.children || 0} criança(s)<br>Pet: ${contract.pets || "não"}`,
+    `<span class="reservation-finance">Mês: ${money(monthRevenue)}<br>Total: ${money(totals.total)}<br>Comissão: ${money(monthRevenue * (contractBrokerPercent(contract) / 100))}</span>`,
     `${status(contract.status)}<br>${status(contract.paymentStatus)}`,
     actions("contracts", contract.id)
   ];
@@ -1263,7 +1263,14 @@ function fieldsFor(collection, record = {}) {
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
     ]
   }[collection] || [];
-  return fields.map(([key, label, type, options, required, fallback, readonly]) => ({ key, label, type, options, required, readonly, value: record[key] ?? fallback ?? "" }));
+  return fields.map(([key, label, type, options, required, fallback, readonly]) => {
+    const visibleLabel = collection === "contracts" && key === "clientId"
+      ? "Hóspede"
+      : collection === "clients" && key === "name"
+        ? "Nome do hóspede"
+        : label;
+    return { key, label: visibleLabel, type, options, required, readonly, value: record[key] ?? fallback ?? "" };
+  });
 }
 
 function openForm(collection, id = null) {
@@ -1880,7 +1887,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.40-auto-20260716-1901");
+  url.searchParams.set("v", "2.1.41-auto-20260717-1156");
   return url.toString();
 }
 
@@ -1912,7 +1919,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.40-auto-20260716-1901");
+  location.replace("login.html?v=2.1.41-auto-20260717-1156");
 }
 
 async function handleSyncAction(action) {

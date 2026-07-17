@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Port = 8770
-$Url = "http://127.0.0.1:$Port/login.html?v=2.1.40-relatorios-20260716"
+$Url = "http://127.0.0.1:$Port/login.html?v=2.1.41-hospedes-20260717"
 $PidFile = Join-Path $AppDir "locacoes-server.pid"
 
 function Test-AppServer {

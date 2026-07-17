@@ -17,7 +17,7 @@ O acesso pela Vercel e o modo principal. A copia local deve ser usada apenas qua
 Principais modulos:
 - Painel executivo
 - Imoveis
-- Clientes
+- Hóspedes
 - Corretores
 - Agenda/calendario
 - Pipeline

@@ -19,7 +19,7 @@
 }
 
 html {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 body,
@@ -460,7 +460,7 @@ h3 {
   line-height: 1.06;
   margin-top: 8px;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: break-word;
   font-size: clamp(1.05rem, 1.55vw, 1.62rem);
 }
@@ -1056,7 +1056,73 @@ td {
   overflow-wrap: anywhere;
   text-align: left;
   vertical-align: top;
-  word-break: break-word;
+  word-break: normal;
+}
+
+/* Reservas precisam de espaço para datas, valores e ações sem cortar palavras. */
+.reservations-page .table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.reservations-page table {
+  min-width: 1180px;
+  table-layout: auto;
+}
+
+.reservations-page th,
+.reservations-page td {
+  max-width: none;
+  padding: 12px 9px;
+  line-height: 1.45;
+}
+
+.reservations-page th:nth-child(1) { min-width: 150px; }
+.reservations-page th:nth-child(2) { min-width: 140px; }
+.reservations-page th:nth-child(3) { min-width: 130px; }
+.reservations-page th:nth-child(4) { min-width: 130px; }
+.reservations-page th:nth-child(5) { min-width: 120px; }
+.reservations-page th:nth-child(6) { min-width: 190px; }
+.reservations-page th:nth-child(7) { min-width: 115px; }
+.reservations-page th:nth-child(8) { min-width: 150px; }
+
+.reservation-period,
+.reservation-finance,
+.contact-details {
+  display: inline-block;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.reservations-page td:last-child .filters,
+.guests-page td:last-child .filters {
+  flex-wrap: nowrap;
+}
+
+.guests-page table {
+  min-width: 850px;
+  table-layout: auto;
+}
+
+.guests-page th:first-child { min-width: 160px; }
+.guests-page th:nth-child(2) { min-width: 210px; }
+.guests-page th:nth-child(3) { min-width: 220px; }
+.guests-page th:last-child { min-width: 150px; }
+
+.reservation-filters {
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.reservation-filters .field {
+  flex: 1 1 190px;
+}
+
+.reservation-filters button {
+  flex: 0 0 auto;
 }
 
 th {
@@ -1714,6 +1780,19 @@ th {
 
   .reservation-dialog .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .reservation-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reservation-filters .field {
+    flex-basis: auto;
+  }
+
+  .reservation-filters button {
+    width: 100%;
   }
 
   .qr-panel {
