@@ -2005,6 +2005,56 @@ th {
   }
 }
 
+/* Mantém o modo compacto ativo em celulares girados para a horizontal. */
+@media (min-width: 681px) and (max-width: 1100px) and (max-height: 600px) {
+  .mobile-chrome-toggle {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 14;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(5, 63, 64, 0.94);
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24);
+    backdrop-filter: blur(10px);
+    font-size: 0.76rem;
+  }
+
+  .mobile-chrome-toggle span {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  body.mobile-chrome-collapsed .sidebar,
+  body.mobile-chrome-collapsed .topbar,
+  body.mobile-chrome-collapsed .update-banner {
+    display: none !important;
+  }
+
+  body.mobile-chrome-collapsed {
+    display: block;
+  }
+
+  body.mobile-chrome-collapsed .shell {
+    width: 100%;
+    min-height: 100dvh;
+  }
+
+  body.mobile-chrome-collapsed .content {
+    padding-top: calc(56px + env(safe-area-inset-top));
+  }
+
+  body:not(.mobile-chrome-collapsed) .sidebar {
+    padding-top: calc(56px + env(safe-area-inset-top));
+  }
+}
+
 @media (max-width: 1100px) and (orientation: portrait) {
   body.calendar-mobile-mode .calendar-mobile-head span,
   .calendar-panel:fullscreen .calendar-mobile-head span {
