@@ -1299,6 +1299,17 @@ th {
   align-items: end;
 }
 
+.calendar-mobile-head {
+  display: none;
+}
+
+.calendar-scroll {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .compact-date-field {
   min-width: 92px;
 }
@@ -1770,8 +1781,7 @@ th {
   }
 
   .calendar {
-    grid-template-columns: repeat(7, minmax(82px, 1fr));
-    overflow-x: auto;
+    grid-template-columns: repeat(7, minmax(118px, 1fr));
   }
 
   .form-grid {
@@ -1801,6 +1811,153 @@ th {
 
   .qr-panel img {
     justify-self: center;
+  }
+}
+
+@media (max-width: 1100px) {
+  body.calendar-mobile-mode {
+    display: block;
+    overflow: hidden;
+    background: #eef2f6;
+  }
+
+  body.calendar-mobile-mode .sidebar,
+  body.calendar-mobile-mode .topbar,
+  body.calendar-mobile-mode .update-banner {
+    display: none !important;
+  }
+
+  body.calendar-mobile-mode .shell,
+  body.calendar-mobile-mode .content {
+    width: 100%;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.calendar-mobile-mode .content {
+    display: block;
+  }
+
+  body.calendar-mobile-mode .calendar-panel,
+  .calendar-panel:fullscreen {
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    margin: 0;
+    padding: 8px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: #f8fafc;
+    box-shadow: none;
+  }
+
+  body.calendar-mobile-mode .calendar-mobile-head,
+  .calendar-panel:fullscreen .calendar-mobile-head {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 4px 8px;
+  }
+
+  .calendar-mobile-head strong {
+    color: var(--brand);
+    font-size: 1rem;
+  }
+
+  .calendar-mobile-head span {
+    flex: 1 1 auto;
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+
+  .calendar-mobile-head button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 6px 10px;
+  }
+
+  body.calendar-mobile-mode .calendar-panel > .toolbar,
+  .calendar-panel:fullscreen > .toolbar {
+    position: relative;
+    z-index: 2;
+    margin-bottom: 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  body.calendar-mobile-mode .calendar-panel > .toolbar > div:first-child,
+  .calendar-panel:fullscreen > .toolbar > div:first-child {
+    display: none;
+  }
+
+  body.calendar-mobile-mode .calendar-filters,
+  .calendar-panel:fullscreen .calendar-filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 78px 84px minmax(145px, 1fr);
+    align-items: end;
+    gap: 6px;
+  }
+
+  body.calendar-mobile-mode .calendar-filters .field,
+  .calendar-panel:fullscreen .calendar-filters .field {
+    min-width: 0;
+    font-size: 0.72rem;
+  }
+
+  body.calendar-mobile-mode .calendar-filters input,
+  body.calendar-mobile-mode .calendar-filters select,
+  .calendar-panel:fullscreen .calendar-filters input,
+  .calendar-panel:fullscreen .calendar-filters select {
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  body.calendar-mobile-mode .calendar-filters [data-calendar-export],
+  body.calendar-mobile-mode .calendar-filters button[onclick],
+  .calendar-panel:fullscreen .calendar-filters [data-calendar-export],
+  .calendar-panel:fullscreen .calendar-filters button[onclick] {
+    display: none;
+  }
+
+  body.calendar-mobile-mode .calendar-scroll,
+  .calendar-panel:fullscreen .calendar-scroll {
+    height: calc(100dvh - 116px);
+    padding-bottom: 8px;
+    overflow: auto;
+  }
+
+  body.calendar-mobile-mode .calendar,
+  .calendar-panel:fullscreen .calendar {
+    width: max(100%, 880px);
+    grid-template-columns: repeat(7, minmax(118px, 1fr));
+    gap: 5px;
+  }
+
+  body.calendar-mobile-mode .day,
+  .calendar-panel:fullscreen .day {
+    min-height: 92px;
+    padding: 5px;
+  }
+
+  body.calendar-mobile-mode .day.compact,
+  body.calendar-mobile-mode .day.out.compact,
+  .calendar-panel:fullscreen .day.compact,
+  .calendar-panel:fullscreen .day.out.compact {
+    min-height: 34px;
+  }
+}
+
+@media (max-width: 1100px) and (orientation: portrait) {
+  body.calendar-mobile-mode .calendar-mobile-head span,
+  .calendar-panel:fullscreen .calendar-mobile-head span {
+    color: var(--warn);
+    font-weight: 800;
   }
 }
 

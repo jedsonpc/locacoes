@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1156";
+const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1211";
 const APP_CHANGE_DATE_LABEL = "Alterado em 17/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -563,6 +563,32 @@ function setRoute(next) {
   render();
 }
 
+function mobileCalendarEligible() {
+  return window.innerWidth <= 900 || Math.min(screen.width, screen.height) <= 600;
+}
+
+async function openMobileCalendarMode() {
+  if (!mobileCalendarEligible()) return;
+  document.body.classList.add("calendar-mobile-mode");
+  const panel = document.querySelector(".calendar-panel");
+  try {
+    if (panel?.requestFullscreen && !document.fullscreenElement) await panel.requestFullscreen();
+  } catch {}
+  try {
+    if (screen.orientation?.lock) await screen.orientation.lock("landscape");
+  } catch {}
+}
+
+async function closeMobileCalendarMode() {
+  document.body.classList.remove("calendar-mobile-mode");
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  } catch {}
+  try {
+    if (screen.orientation?.unlock) screen.orientation.unlock();
+  } catch {}
+}
+
 function renderNav() {
   document.querySelector("#nav").innerHTML = navItems.map(([id, label, icon]) => `<button class="${route === id ? "active" : ""}" data-route="${id}" type="button"><span>${icon}</span>${label}</button>`).join("");
 }
@@ -724,7 +750,7 @@ function contractRow(contract, activeMonth = state.settings.reportMonth || state
 function calendarView() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
-  return `<section class="panel calendar-panel"><div class="toolbar"><div><p class="eyebrow">Ocupacao mensal</p><h2>Calendario</h2></div><div class="filters calendar-filters">${calendarMonthYearControls(month)}<label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-calendar-export type="button">Exportar WhatsApp</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar" id="calendarGrid">${calendarHtml(month, apartmentId)}</div></section>`;
+  return `<section class="panel calendar-panel"><div class="calendar-mobile-head"><strong>Calendário</strong><span>Use o celular na horizontal</span><button class="ghost-button" data-close-mobile-calendar type="button">Sair da tela cheia</button></div><div class="toolbar"><div><p class="eyebrow">Ocupação mensal</p><h2>Calendário</h2></div><div class="filters calendar-filters">${calendarMonthYearControls(month)}<label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-calendar-export type="button">Exportar WhatsApp</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar-scroll"><div class="calendar" id="calendarGrid">${calendarHtml(month, apartmentId)}</div></div></section>`;
 }
 
 function calendarMonthYearControls(month) {
@@ -1887,7 +1913,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.41-auto-20260717-1156");
+  url.searchParams.set("v", "2.1.41-auto-20260717-1211");
   return url.toString();
 }
 
@@ -1919,7 +1945,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.41-auto-20260717-1156");
+  location.replace("login.html?v=2.1.41-auto-20260717-1211");
 }
 
 async function handleSyncAction(action) {
@@ -1979,7 +2005,19 @@ document.addEventListener("click", (event) => {
     return;
   }
   const routeBtn = event.target.closest("[data-route]");
-  if (routeBtn) setRoute(routeBtn.dataset.route);
+  if (routeBtn) {
+    const nextRoute = routeBtn.dataset.route;
+    setRoute(nextRoute);
+    if (nextRoute === "calendar") openMobileCalendarMode();
+    else closeMobileCalendarMode();
+    return;
+  }
+
+  const closeMobileCalendarBtn = event.target.closest("[data-close-mobile-calendar]");
+  if (closeMobileCalendarBtn) {
+    closeMobileCalendarMode();
+    return;
+  }
 
   const addBtn = event.target.closest("[data-add]");
   if (addBtn) openForm(addBtn.dataset.add);
@@ -2100,6 +2138,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
