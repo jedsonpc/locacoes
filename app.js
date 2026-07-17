@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1211";
+const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1219";
 const APP_CHANGE_DATE_LABEL = "Alterado em 17/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -561,6 +561,36 @@ function setRoute(next) {
   route = next;
   history.replaceState(null, "", `?view=${route}`);
   render();
+}
+
+function mobileCompactEligible() {
+  return window.innerWidth <= 680;
+}
+
+function updateMobileChromeToggle() {
+  const button = document.querySelector("#mobileChromeToggle");
+  if (!button) return;
+  const collapsed = document.body.classList.contains("mobile-chrome-collapsed");
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", collapsed ? "Mostrar menu superior" : "Ocultar menu superior");
+  const label = button.querySelector("strong");
+  if (label) label.textContent = collapsed ? "Mostrar menu" : "Ocultar menu";
+}
+
+function collapseMobileChrome() {
+  if (!mobileCompactEligible()) return;
+  document.body.classList.add("mobile-chrome-collapsed");
+  updateMobileChromeToggle();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function toggleMobileChrome() {
+  if (!mobileCompactEligible()) return;
+  document.body.classList.toggle("mobile-chrome-collapsed");
+  updateMobileChromeToggle();
+  if (!document.body.classList.contains("mobile-chrome-collapsed")) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 
 function mobileCalendarEligible() {
@@ -1913,7 +1943,7 @@ function getAccessUrl() {
   const loginPath = isLocalHost ? "login.html" : "login";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.41-auto-20260717-1211");
+  url.searchParams.set("v", "2.1.41-auto-20260717-1219");
   return url.toString();
 }
 
@@ -1945,7 +1975,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.41-auto-20260717-1211");
+  location.replace("login.html?v=2.1.41-auto-20260717-1219");
 }
 
 async function handleSyncAction(action) {
@@ -2008,8 +2038,15 @@ document.addEventListener("click", (event) => {
   if (routeBtn) {
     const nextRoute = routeBtn.dataset.route;
     setRoute(nextRoute);
+    collapseMobileChrome();
     if (nextRoute === "calendar") openMobileCalendarMode();
     else closeMobileCalendarMode();
+    return;
+  }
+
+  const mobileChromeToggle = event.target.closest("#mobileChromeToggle");
+  if (mobileChromeToggle) {
+    toggleMobileChrome();
     return;
   }
 
@@ -2138,6 +2175,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

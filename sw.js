@@ -1,4 +1,4 @@
-﻿const appVersion = "local-2.1.41-auto-20260717-1211";
+﻿const appVersion = "local-2.1.41-auto-20260717-1219";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersion}-hospedes-20260717-v2141`;
 const staticFiles = [
@@ -46,6 +46,7 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
 
 
 

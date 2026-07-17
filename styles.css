@@ -63,6 +63,10 @@ button {
   display: none !important;
 }
 
+.mobile-chrome-toggle {
+  display: none;
+}
+
 .sidebar {
   position: sticky;
   top: 0;
@@ -1678,6 +1682,53 @@ th {
 }
 
 @media (max-width: 680px) {
+  .mobile-chrome-toggle {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 10px;
+    z-index: 14;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(5, 63, 64, 0.94);
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24);
+    backdrop-filter: blur(10px);
+    font-size: 0.76rem;
+  }
+
+  .mobile-chrome-toggle span {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  body.mobile-chrome-collapsed .sidebar,
+  body.mobile-chrome-collapsed .topbar,
+  body.mobile-chrome-collapsed .update-banner {
+    display: none !important;
+  }
+
+  body.mobile-chrome-collapsed {
+    display: block;
+  }
+
+  body.mobile-chrome-collapsed .shell {
+    width: 100%;
+    min-height: 100dvh;
+  }
+
+  body.mobile-chrome-collapsed .content {
+    padding-top: calc(62px + env(safe-area-inset-top));
+  }
+
+  body:not(.mobile-chrome-collapsed) .sidebar {
+    padding-top: calc(62px + env(safe-area-inset-top));
+  }
+
   .annual-executive-kpis {
     grid-template-columns: 1fr;
   }
@@ -1823,7 +1874,8 @@ th {
 
   body.calendar-mobile-mode .sidebar,
   body.calendar-mobile-mode .topbar,
-  body.calendar-mobile-mode .update-banner {
+  body.calendar-mobile-mode .update-banner,
+  body.calendar-mobile-mode .mobile-chrome-toggle {
     display: none !important;
   }
 
