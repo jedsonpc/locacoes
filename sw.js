@@ -1,15 +1,18 @@
-﻿const appVersion = "local-2.1.41-auto-20260717-1224";
+﻿const appVersion = "local-2.1.45-auto-20260718-1325";
+const appVersionCurrent = "local-2.1.47-offline-20260730";
 const cachePrefix = "app-locacao-";
-const cacheName = `${cachePrefix}${appVersion}-hospedes-20260717-v2141`;
+const cacheName = `${cachePrefix}${appVersionCurrent}-login-update-prompt-20260731`;
 const staticFiles = [
   "./",
   "./index.html",
   "./login.html",
   "./styles.css",
   "./app.js",
+  "./offline-db.js",
   "./supabase-config.js",
   "./supabase-sync.js",
   "./update-checker.js",
+  "./login-update.js",
   "./manifest.webmanifest",
   "./version.json",
   "./logo-cupe-beach-living.png",
@@ -24,7 +27,10 @@ const offlineHtml = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => Promise.allSettled(staticFiles.map((file) => cache.add(file)))));
-  self.skipWaiting();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -46,6 +52,10 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
+
+
+
 
 
 

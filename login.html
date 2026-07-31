@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f766e" />
     <title>Login | Cupe Beach Living</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <style>
       * { box-sizing: border-box; }
       body {
@@ -113,6 +115,16 @@
         cursor: wait;
         opacity: .65;
       }
+      .install-button {
+        display: none;
+        margin-top: 8px;
+        border: 1px solid #0f766e;
+        background: #ecfdf5;
+        color: #0f766e;
+      }
+      .install-button.visible {
+        display: block;
+      }
       .status {
         display: none;
         margin-top: 14px;
@@ -162,15 +174,47 @@
         <button id="togglePassword" class="password-toggle" type="button">Exibir</button>
       </div>
       <button id="submitBtn" type="submit">Entrar no app</button>
+      <button id="installBtn" class="install-button" type="button">
+        Instalar aplicativo no celular
+      </button>
       <div class="status" id="status"></div>
       <p class="hint">Use somente usuarios cadastrados e autorizados no projeto Supabase gestao-locacoes.</p>
     </form>
 
+    <script src="login-update.js?v=20260731" data-app-name="Cupe Beach Living"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=2.1.41-auto-20260717-1224"></script>
-    <script src="supabase-sync.js?v=2.1.41-auto-20260717-1224"></script>
+    <script src="supabase-config.js?v=2.1.46-mobile-20260730"></script>
+    <script src="supabase-sync.js?v=2.1.46-mobile-20260730"></script>
     <script>
       const offlineUserKey = "app-locacao-last-online-user-v1";
+      let deferredInstallPrompt = null;
+
+      window.addEventListener("beforeinstallprompt", (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        document.getElementById("installBtn")?.classList.add("visible");
+      });
+
+      window.addEventListener("appinstalled", () => {
+        deferredInstallPrompt = null;
+        document.getElementById("installBtn")?.classList.remove("visible");
+      });
+
+      document.getElementById("installBtn").addEventListener("click", async () => {
+        if (!deferredInstallPrompt) return;
+        await deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        document.getElementById("installBtn").classList.remove("visible");
+      });
+
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () =>
+          navigator.serviceWorker
+            .register("/sw.js", { updateViaCache: "none" })
+            .catch(() => undefined),
+        );
+      }
 
       function setStatus(text, kind = "error") {
         const el = document.getElementById("status");
@@ -256,6 +300,10 @@
     </script>
   </body>
 </html>
+
+
+
+
 
 
 
