@@ -2,9 +2,9 @@
   "name": "Cupe Beach Living",
   "short_name": "Cupe",
   "description": "Gestao de locacao do Cupe Beach Living: clientes, reservas, contratos, financeiro, manutencao e relatorios.",
-  "id": "./",
-  "start_url": "./",
-  "scope": "./",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f7f8fb",
@@ -15,31 +15,31 @@
     {
       "name": "Agenda",
       "short_name": "Agenda",
-      "url": "./?view=calendar",
+      "url": "/?view=calendar",
       "description": "Abrir reservas e visitas"
     },
     {
       "name": "Relatorios",
       "short_name": "Relatorios",
-      "url": "./?view=reports",
+      "url": "/?view=reports",
       "description": "Abrir indicadores executivos"
     }
   ],
   "icons": [
     {
-      "src": "./icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./icon.svg",
+      "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

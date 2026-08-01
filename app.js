@@ -2,10 +2,11 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.41-auto-20260717-1224";
-const APP_CHANGE_DATE_LABEL = "Alterado em 17/07/2026";
+const APP_VERSION_LABEL = "v2.1.48-auto-20260801-0948";
+const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
+const offlineDatabase = window.createOfflineDatabase?.({ dbName: "app-locacao-offline-v1" }) || null;
 
 const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const valueFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -463,7 +464,7 @@ function loadState() {
 
 function saveState(reason = "manual") {
   state.meta = { updatedAt: new Date().toISOString(), reason };
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  persistLocalSnapshot(state, { reason });
   const status = document.querySelector("#storageStatus");
   if (status) {
     status.textContent = "Salvo agora";
@@ -472,8 +473,32 @@ function saveState(reason = "manual") {
   window.LocacoesSupabaseSync?.queueSave?.(state);
 }
 
+function persistLocalSnapshot(nextState, metadata = {}) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(nextState));
+  offlineDatabase?.putState(STORE_KEY, structuredClone(nextState), metadata)
+    .catch((error) => console.warn("IndexedDB: não foi possível atualizar o cache.", error));
+}
+
+async function hydrateStateFromIndexedDb() {
+  if (!offlineDatabase) return;
+  try {
+    const durable = await offlineDatabase.getState(STORE_KEY);
+    if (durable?.value) {
+      state = normalize(durable.value);
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      return;
+    }
+    await offlineDatabase.putState(STORE_KEY, structuredClone(state), { migratedFrom: "localStorage" });
+  } catch (error) {
+    console.warn("IndexedDB indisponível; mantendo cache de compatibilidade.", error);
+  }
+}
+
 function contractTotals(contract) {
   const stayNights = nights(contract.checkIn, contract.checkOut);
+  if (contract.paymentStatus === "cortesia") {
+    return { stayNights, lodging: 0, cleaning: 0, discount: 0, total: 0, commission: 0, received: 0, pending: 0 };
+  }
   const cleaning = toNumber(contract.cleaningFee);
   const discount = toNumber(contract.discount);
   const calculatedLodging = stayNights * toNumber(contract.dailyRate);
@@ -522,8 +547,12 @@ function occupiedNightKeys(contracts, start, end) {
 }
 
 function hasConflict(contract) {
+  return Boolean(findConflictingContract(contract));
+}
+
+function findConflictingContract(contract) {
   if (!contract.apartmentId || !contract.checkIn || !contract.checkOut || contract.status === "cancelada") return false;
-  return state.contracts.some((other) => {
+  return state.contracts.find((other) => {
     if (other.id === contract.id || other.apartmentId !== contract.apartmentId || other.status === "cancelada") return false;
     return parseDate(contract.checkIn) < parseDate(other.checkOut) && parseDate(contract.checkOut) > parseDate(other.checkIn);
   });
@@ -541,9 +570,12 @@ function buildMetrics(month = monthIso(), apartmentId = "") {
   const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
   const { start, end } = monthRange(month);
   const occupied = occupiedNightKeys(contracts, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)).size;
+  const courtesyDays = contracts
+    .filter((contract) => contract.paymentStatus === "cortesia")
+    .reduce((sum, contract) => sum + occupancyDays(contract, month), 0);
   const apartmentCount = apartmentId ? 1 : Math.max(1, state.apartments.filter((apt) => apt.status !== "inativo").length);
   const daysInMonth = monthRange(month).end.getUTCDate() * apartmentCount;
-  return { contracts, expenses, revenue, commission, expenseTotal, net: revenue - commission - expenseTotal, occupied, occupancy: daysInMonth ? occupied / daysInMonth : 0 };
+  return { contracts, expenses, revenue, commission, expenseTotal, net: revenue - commission - expenseTotal, occupied, courtesyDays, occupancy: daysInMonth ? occupied / daysInMonth : 0 };
 }
 
 function percent(value) {
@@ -661,7 +693,7 @@ function dashboard() {
     });
   const paymentAlerts = state.contracts
     .filter((contract) => {
-      if (contract.status === "cancelada" || contract.paymentStatus === "pago" || contract.paymentConfirmed === "sim") return false;
+      if (contract.status === "cancelada" || contract.paymentStatus === "pago" || contract.paymentStatus === "cortesia" || contract.paymentConfirmed === "sim") return false;
       if (contract.isAirbnb === "sim") return today >= String(contract.checkOut || "");
       return String(contract.checkOut || "") >= today;
     })
@@ -691,6 +723,7 @@ function dashboard() {
         ${metric("Comissoes", money(m.commission), "corretores vinculados", "info")}
         ${metric("Despesas", money(m.expenseTotal), "custos lancados", m.expenseTotal ? "warn" : "ok")}
         ${metric("Resultado", money(m.net), `${Math.round(m.occupancy * 100)}% de ocupacao`, m.net >= 0 ? "ok" : "danger")}
+        ${metric("Diarias de cortesia", m.courtesyDays, "ocupadas sem cobranca", "info")}
       </div>
     </section>
     <div class="grid two-col">
@@ -850,9 +883,17 @@ function calendarEventHtml(event) {
   const brokerName = calendarBrokerLabel(contract, client);
   const aptName = apt?.name || apt?.unitNumber || "Apto";
   const isCheckout = event.type === "checkout";
-  const brokerLine = brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : "";
+  const isCourtesy = contract.paymentStatus === "cortesia" && !isCheckout;
+  const brokerLine = brokerName ? `<small class="event-broker">Cor: ${escapeHtml(shortName(brokerName))}</small>` : "";
   const operationalLines = calendarOperationalLines(event);
-  return `<span class="event ${isCheckout ? "checkout" : ""} ${hasConflict(contract) ? "blocked" : ""} ${operationalLines.length ? "has-alert" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)} - Hóspedes: ${contract.guests || 0}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${operationalLines.length ? ` - ${escapeHtml(operationalLines.join(" - "))}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))}</small><small>Hóspedes: ${contract.guests || 0}</small>${brokerLine}${operationalLines.map((line) => `<small class="event-alert">${escapeHtml(line)}</small>`).join("")}</span>`;
+  const guestsLabel = calendarGuestsLabel(contract);
+  return `<span class="event ${isCheckout ? "checkout" : ""} ${isCourtesy ? "courtesy" : ""} ${hasConflict(contract) ? "blocked" : ""} ${operationalLines.length ? "has-alert" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)} - Hóspedes: ${escapeHtml(guestsLabel)}${isCourtesy ? " - Cortesia" : ""}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${operationalLines.length ? ` - ${escapeHtml(operationalLines.join(" - "))}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small class="event-client">${isCheckout ? "Saída: " : ""}${escapeHtml(shortName(clientName))}</small><small class="event-guests" aria-label="Hóspedes: ${escapeHtml(guestsLabel)}">Hósp.: ${escapeHtml(guestsLabel)}</small>${isCourtesy ? `<small class="event-courtesy">Cortesia</small>` : ""}${brokerLine}${operationalLines.map((line) => `<small class="event-alert">${escapeHtml(line)}</small>`).join("")}</span>`;
+}
+
+function calendarGuestsLabel(contract) {
+  const adults = toNumber(contract?.guests);
+  const children = toNumber(contract?.children);
+  return children ? `${adults}A · ${children}C` : `${adults}A`;
 }
 
 function shortName(name) {
@@ -990,7 +1031,7 @@ function reportsView() {
       escapeHtml(getById("clients", contract.clientId)?.name || "-"),
       escapeHtml(getById("apartments", contract.apartmentId)?.name || "-"),
       escapeHtml(broker?.name || "Sem corretor"),
-      money(totals.total),
+      contract.paymentStatus === "cortesia" ? "Cortesia" : money(totals.total),
       contract.commissionAlreadyDeducted === "sim" ? "Ja compensada" : money(totals.commission),
       status(contract.status)
     ];
@@ -999,7 +1040,7 @@ function reportsView() {
   const printOptions = [["all", "Todos os relatorios"], ["kpis", "Resumo do periodo"], ["comparison", "Comparativo anual"], ["evolution", "Graficos de evolucao"], ["annual", "Faturamento anual por corretor"], ["detail", "Reservas detalhadas"], ["brokers", "Comissoes"], ["expenses", "Despesas"]];
   const scopeTag = reportScopeTag(apartmentId);
   return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2>${scopeTag}</div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
-    <div class="grid stats report-kpis" data-report-key="kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "mesmo periodo do ano anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "mesmo periodo do ano anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}</div>
+    <div class="grid stats report-kpis" data-report-key="kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "mesmo periodo do ano anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "mesmo periodo do ano anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}${metric("Diarias de cortesia", current.courtesyDays, "ocupadas sem cobranca", "info")}</div>
     <div data-report-key="comparison">${reportComparisonPanel(current, previous, previousStart, previousEnd, apartmentId)}</div>
     <div data-report-key="evolution">${reportEvolutionPanel(buckets, apartmentId)}</div>
     <div data-report-key="annual">${annualBrokerRevenuePanel(annualYear, apartmentId)}</div>
@@ -1046,7 +1087,8 @@ function reportPeriodMetrics(contracts, expenses) {
   const revenue = contracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
   const commission = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
   const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
-  return { reservations: contracts.length, revenue, commission, expenses: expenseTotal, net: revenue - commission - expenseTotal };
+  const courtesyDays = contracts.filter((contract) => contract.paymentStatus === "cortesia").reduce((sum, contract) => sum + nights(contract.checkIn, contract.checkOut), 0);
+  return { reservations: contracts.length, revenue, commission, expenses: expenseTotal, net: revenue - commission - expenseTotal, courtesyDays };
 }
 
 function reportDeltaText(current, previous, suffix) {
@@ -1160,21 +1202,13 @@ function annualBrokerRevenuePanel(year, apartmentId = "") {
   const summaryTotal = `<tr class="annual-total-row"><td></td><td><strong>Total geral</strong></td><td><strong>${totalDailyCount}</strong></td><td><strong>${money(grandTotal)}</strong></td><td><strong>${money(totalDailyCount ? grandTotal / totalDailyCount : 0)}</strong></td><td><strong>100%</strong></td><td><strong>${percent(totalDailyCount / (isLeapYear(Number(year)) ? 366 : 365))}</strong></td></tr>`;
   const header = ["Mes", ...brokerRows.map((row) => row.name), "Total geral"].map((label) => `<th>${escapeHtml(label)}</th>`).join("");
   const rows = monthLabels.map((label, monthIndex) => `<tr><td><strong>${label}/${String(year).slice(-2)}</strong></td>${brokerRows.map((row) => `<td class="${row.monthly[monthIndex] ? "has-value" : "is-empty"}" title="${escapeHtml(money(row.monthly[monthIndex]))}">${row.monthly[monthIndex] ? valueFmt.format(row.monthly[monthIndex]) : "-"}</td>`).join("")}<td class="annual-month-total" title="${escapeHtml(money(monthlyTotals[monthIndex]))}"><strong>${monthlyTotals[monthIndex] ? valueFmt.format(monthlyTotals[monthIndex]) : "-"}</strong></td></tr>`).join("");
-  const totalRow = `<tr class="annual-total-row"><td><strong>Total geral</strong></td>${brokerRows.map((row) => `<td title="${escapeHtml(money(row.total))}"><strong>${annualCompactValue(row.total)}</strong></td>`).join("")}<td title="${escapeHtml(money(grandTotal))}"><strong>${annualCompactValue(grandTotal)}</strong></td></tr>`;
-  const mobileRows = [...brokerRows, { name: "Total geral", monthly: monthlyTotals, total: grandTotal, totalRow: true }].map((row) => `<article class="annual-mobile-broker ${row.totalRow ? "total" : ""}"><div><strong>${escapeHtml(row.name)}</strong><span>Total: ${money(row.total)}</span></div><dl class="annual-mobile-months">${row.monthly.map((value, index) => `<div><dt>${monthLabels[index]}</dt><dd>${annualCompactValue(value)}</dd></div>`).join("")}</dl></article>`).join("");
-  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Visao consolidada do faturamento vinculado aos corretores cadastrados. Valores mensais em R$ e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal reconciliada</span><strong>Faturamento por competencia e corretor</strong></div><small>Total da matriz: ${money(grandTotal)}</small></div><div class="annual-revenue-table annual-revenue-matrix"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
+  const totalRow = `<tr class="annual-total-row"><td><strong>Total geral</strong></td>${brokerRows.map((row) => `<td title="${escapeHtml(money(row.total))}"><strong>${valueFmt.format(row.total)}</strong></td>`).join("")}<td title="${escapeHtml(money(grandTotal))}"><strong>${valueFmt.format(grandTotal)}</strong></td></tr>`;
+  const mobileRows = [...brokerRows, { name: "Total geral", monthly: monthlyTotals, total: grandTotal, totalRow: true }].map((row) => `<article class="annual-mobile-broker ${row.totalRow ? "total" : ""}"><div><strong>${escapeHtml(row.name)}</strong><span>Total: ${money(row.total)}</span></div><dl class="annual-mobile-months">${row.monthly.map((value, index) => `<div><dt>${monthLabels[index]}</dt><dd>${valueFmt.format(value)}</dd></div>`).join("")}</dl></article>`).join("");
+  return `<section class="panel annual-executive-report"><div class="toolbar"><div><p class="eyebrow">Analise executiva anual</p><h2>Faturamento mensal por corretor - ${year}</h2>${reportScopeTag(apartmentId)}</div><div class="filters">${yearFilter}</div></div><p class="muted block-help">Visao consolidada do faturamento vinculado aos corretores cadastrados. Valores mensais completos em R$, com duas casas decimais, e check-out excluido da contagem de diarias.</p>${executiveKpis}<div class="annual-section-title"><div><span>Desempenho consolidado</span><strong>Ranking anual por corretor</strong></div></div><div class="annual-summary-table"><table><thead><tr>${summaryHeader}</tr></thead><tbody>${summaryRows}${summaryTotal}</tbody></table></div><div class="annual-section-title"><div><span>Abertura mensal reconciliada</span><strong>Faturamento por competencia e corretor</strong></div><small>Total da matriz: ${money(grandTotal)}</small></div><div class="annual-revenue-table annual-revenue-matrix" style="--annual-columns:${brokerRows.length + 2}"><table><thead><tr>${header}</tr></thead><tbody>${rows}${totalRow}</tbody></table></div><div class="annual-mobile-list">${mobileRows}</div></section>`;
 }
 
 function isLeapYear(year) {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-
-function annualCompactValue(value) {
-  const number = toNumber(value);
-  const absolute = Math.abs(number);
-  if (absolute >= 1000000) return `${(number / 1000000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
-  if (absolute >= 100000) return `${(number / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;
-  return valueFmt.format(number);
 }
 
 function occupancyReportPanel(month, apartmentId = "") {
@@ -1313,7 +1347,7 @@ function fieldsFor(collection, record = {}) {
       ["name", "Nome", "text", null, true], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["commissionDefault", "Comissao padrao (%)", "number"], ["status", "Status", "select", [["ativo", "Ativo"], ["inativo", "Inativo"]]], ["notes", "Observacoes", "textarea"]
     ],
     contracts: [
-      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"]], false, "pendente"], ["isAirbnb", "Reserva atraves do Airbnb", "checkbox", null, false, "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal (recebido + caucao)", "number", null, false, toNumber(record.deposit) + toNumber(record.securityDeposit), true], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
+      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"], ["cortesia", "Cortesia"]], false, "pendente"], ["isAirbnb", "Reserva atraves do Airbnb", "checkbox", null, false, "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Valor recebido", "number", null, false, 0], ["securityDeposit", "Deposito caucao", "number", null, false, 0], ["firstPayment", "Entrada/sinal (recebido + caucao)", "number", null, false, toNumber(record.deposit) + toNumber(record.securityDeposit), true], ["firstPaymentDate", "Data da entrada", "date"], ["balanceDueDate", "Vencimento do saldo", "date"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     expenses: [
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
@@ -1332,13 +1366,19 @@ function fieldsFor(collection, record = {}) {
 function openForm(collection, id = null) {
   const dialog = document.querySelector("#recordDialog");
   const fields = document.querySelector("#formFields");
+  const form = document.querySelector("#recordForm");
+  const actions = dialog.querySelector(".dialog-actions");
   const record = id ? state[collection].find((item) => item.id === id) : {};
   const label = collectionLabels[collection]?.[0] || "registro";
   dialog.dataset.collection = collection;
   dialog.dataset.id = id || "";
   dialog.classList.toggle("reservation-dialog", collection === "contracts");
   document.querySelector("#dialogTitle").textContent = id ? `Editar ${label}` : `Novo ${label}`;
+  form.append(actions);
   fields.innerHTML = fieldsFor(collection, record).map(fieldHtml).join("");
+  if (collection === "contracts") {
+    fields.querySelector('[data-field-key="cancellationPolicy"]')?.after(actions);
+  }
   bindFormEnhancements(collection);
   dialog.showModal();
 }
@@ -1348,6 +1388,30 @@ function bindFormEnhancements(collection) {
     input.addEventListener("blur", () => input.value = brazilianValue(input.value));
   });
   if (collection === "contracts") {
+    const formalContractSelect = document.querySelector("#hasFormalContract");
+    const paymentStatusSelect = document.querySelector("#paymentStatus");
+    const courtesyMoneyFields = ["reservationTotal", "dailyRate", "cleaningFee", "discount", "deposit", "securityDeposit", "firstPayment"];
+    const updateCourtesyFields = () => {
+      const isCourtesy = paymentStatusSelect?.value === "cortesia";
+      courtesyMoneyFields.forEach((id) => {
+        const input = document.querySelector(`#${id}`);
+        if (!input) return;
+        if (isCourtesy) input.value = brazilianValue(0);
+        input.disabled = isCourtesy || id === "dailyRate" || id === "firstPayment";
+        input.closest(".field")?.classList.toggle("courtesy-disabled", isCourtesy);
+      });
+      const commissionField = document.querySelector('[data-field-key="commissionAlreadyDeducted"]');
+      const commissionInput = document.querySelector("#commissionAlreadyDeducted");
+      if (commissionInput) commissionInput.disabled = isCourtesy;
+      commissionField?.classList.toggle("courtesy-disabled", isCourtesy);
+    };
+    paymentStatusSelect?.addEventListener("change", updateCourtesyFields);
+    const updateContractIssueDateVisibility = () => {
+      const issueDateField = document.querySelector('[data-field-key="issueDate"]');
+      if (issueDateField) issueDateField.hidden = formalContractSelect?.value === "nao";
+    };
+    formalContractSelect?.addEventListener("change", updateContractIssueDateVisibility);
+    updateContractIssueDateVisibility();
     const watched = ["checkIn", "checkOut", "reservationTotal", "cleaningFee", "discount"]
       .map((id) => document.querySelector(`#${id}`)).filter(Boolean);
     const updateDailyRate = () => {
@@ -1366,6 +1430,7 @@ function bindFormEnhancements(collection) {
     ["deposit", "securityDeposit"].map((id) => document.querySelector(`#${id}`)).filter(Boolean).forEach((input) => input.addEventListener("input", updateFirstPayment));
     updateDailyRate();
     updateFirstPayment();
+    updateCourtesyFields();
     return;
   }
   if (collection !== "clients") return;
@@ -1398,17 +1463,17 @@ function fieldHtml(field) {
   const required = field.required ? "required" : "";
   if (field.type === "checkbox") {
     const checked = field.value === true || field.value === "sim";
-    return `<div class="field checkbox-field"><label for="${field.key}"><input id="${field.key}" name="${field.key}" type="checkbox" value="sim" ${checked ? "checked" : ""} /><span>${field.label}</span></label></div>`;
+    return `<div class="field checkbox-field" data-field-key="${field.key}"><label for="${field.key}"><input id="${field.key}" name="${field.key}" type="checkbox" value="sim" ${checked ? "checked" : ""} /><span>${field.label}</span></label></div>`;
   }
   if (field.type === "select") {
     const options = typeof field.options === "function" ? field.options() : field.options;
-    return `<div class="field${full}"><label for="${field.key}">${field.label}</label><select id="${field.key}" name="${field.key}" ${required}>${options.map(([value, label]) => `<option value="${escapeHtml(value)}" ${String(value) === String(field.value) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></div>`;
+    return `<div class="field${full}" data-field-key="${field.key}"><label for="${field.key}">${field.label}</label><select id="${field.key}" name="${field.key}" ${required}>${options.map(([value, label]) => `<option value="${escapeHtml(value)}" ${String(value) === String(field.value) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></div>`;
   }
-  if (field.type === "textarea") return `<div class="field${full}"><label for="${field.key}">${field.label}</label><textarea id="${field.key}" name="${field.key}">${escapeHtml(field.value)}</textarea></div>`;
+  if (field.type === "textarea") return `<div class="field${full}" data-field-key="${field.key}"><label for="${field.key}">${field.label}</label><textarea id="${field.key}" name="${field.key}">${escapeHtml(field.value)}</textarea></div>`;
   const isMoney = moneyFieldKeys.has(field.key);
   const inputType = isMoney ? "text" : field.type;
   const value = isMoney ? brazilianValue(field.value) : field.value;
-  return `<div class="field${full}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${inputType}" value="${escapeHtml(value)}" ${isMoney ? "inputmode='decimal' data-money-field" : field.type === "number" ? "step='0.01'" : ""} ${field.readonly ? "readonly" : ""} ${required} /></div>`;
+  return `<div class="field${full}" data-field-key="${field.key}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${inputType}" value="${escapeHtml(value)}" ${isMoney ? "inputmode='decimal' data-money-field" : field.type === "number" ? "step='0.01'" : ""} ${field.readonly ? "readonly" : ""} ${required} /></div>`;
 }
 
 function submitForm(event) {
@@ -1429,9 +1494,18 @@ function submitForm(event) {
   if (collection === "clients") {
     const documentError = validateDocumentValue(record.document);
     if (documentError) return toast(documentError);
+    const duplicate = findDuplicateClient(record, id);
+    if (duplicate) return toast(`Hóspede já cadastrado: ${duplicate.name}. O novo cadastro não foi realizado.`);
   }
 
   if (collection === "contracts") {
+    if (record.hasFormalContract === "nao") record.issueDate = "";
+    const isCourtesy = record.paymentStatus === "cortesia";
+    if (isCourtesy) {
+      ["reservationTotal", "dailyRate", "cleaningFee", "discount", "deposit", "securityDeposit", "firstPayment"].forEach((key) => record[key] = 0);
+      record.commissionAlreadyDeducted = "nao";
+      record.paymentConfirmed = "nao";
+    }
     const stayNights = nights(record.checkIn, record.checkOut);
     record.dailyRate = stayNights > 0 ? Math.max(0, (toNumber(record.reservationTotal) - toNumber(record.cleaningFee) + toNumber(record.discount)) / stayNights) : 0;
     record.firstPayment = toNumber(record.deposit) + toNumber(record.securityDeposit);
@@ -1460,8 +1534,26 @@ function validateContract(contract) {
   const apartment = getById("apartments", contract.apartmentId);
   const totalGuests = toNumber(contract.guests) + toNumber(contract.children);
   if (apartment?.maxGuests && totalGuests > toNumber(apartment.maxGuests)) return "Hospedes acima da capacidade do apartamento.";
-  if (hasConflict(contract)) return "Este periodo conflita com outra reserva ativa.";
+  const conflict = findConflictingContract(contract);
+  if (conflict) {
+    const apartmentName = getById("apartments", contract.apartmentId)?.name || "este imóvel";
+    return `Já existe uma reserva para ${apartmentName} entre ${dateBR(conflict.checkIn)} e ${dateBR(conflict.checkOut)}. A nova reserva não foi cadastrada.`;
+  }
   return "";
+}
+
+function findDuplicateClient(client, currentId = "") {
+  const documentDigits = onlyDigits(client.document);
+  const phoneDigits = onlyDigits(client.phone);
+  const email = normalizedText(client.email);
+  const name = normalizedText(client.name);
+  return state.clients.find((other) => {
+    if (other.id === currentId) return false;
+    if (documentDigits && documentDigits === onlyDigits(other.document)) return true;
+    if (email && email === normalizedText(other.email)) return true;
+    if (phoneDigits && phoneDigits === onlyDigits(other.phone)) return true;
+    return Boolean(name && name === normalizedText(other.name));
+  });
 }
 
 function exportCSV(collection) {
@@ -1552,7 +1644,8 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
   const eventHeight = (event) => {
     const contract = event.contract || event;
     const client = getById("clients", contract.clientId);
-    return 44 + (calendarBrokerLabel(contract, client) ? 13 : 0) + calendarOperationalLines(event).length * 13;
+    const courtesyLine = contract.paymentStatus === "cortesia" && event.type !== "checkout" ? 13 : 0;
+    return 44 + courtesyLine + (calendarBrokerLabel(contract, client) ? 13 : 0) + calendarOperationalLines(event).length * 13;
   };
   const weekHeights = weeks.map((week) => Math.max(116, ...week.map((date) => {
     if (!date) return 116;
@@ -1624,7 +1717,8 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
         const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
         const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
         const operationalLines = calendarOperationalLines(event);
-        const itemHeight = 44 + (brokerName ? 13 : 0) + operationalLines.length * 13;
+        const isCourtesy = contract.paymentStatus === "cortesia" && event.type !== "checkout";
+        const itemHeight = 44 + (isCourtesy ? 13 : 0) + (brokerName ? 13 : 0) + operationalLines.length * 13;
         context.fillStyle = hexToRgba(color, 0.14);
         context.fillRect(x + 6, eventY, cellWidth - 12, itemHeight);
         context.fillStyle = color;
@@ -1635,8 +1729,16 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
         context.font = "700 10px Arial";
         const checkout = event.type === "checkout" ? "Saida - " : "";
         context.fillText(canvasFitText(context, `${checkout}${shortName(clientName)}`, cellWidth - 28), x + 16, eventY + 26);
-        context.fillText(canvasFitText(context, `Hóspedes: ${contract.guests || 0}`, cellWidth - 28), x + 16, eventY + 39);
+        context.fillText(canvasFitText(context, `Hósp.: ${calendarGuestsLabel(contract)}`, cellWidth - 28), x + 16, eventY + 39);
         let detailY = 39;
+        if (isCourtesy) {
+          detailY += 13;
+          context.fillStyle = "#6d28d9";
+          context.font = "900 10px Arial";
+          context.fillText("CORTESIA", x + 16, eventY + detailY);
+          context.fillStyle = "#0f172a";
+          context.font = "700 10px Arial";
+        }
         if (brokerName) {
           detailY += 13;
           context.fillText(canvasFitText(context, `Corretor: ${shortName(brokerName)}`, cellWidth - 28), x + 16, eventY + detailY);
@@ -1721,8 +1823,9 @@ function calendarExportEventHtml(event) {
   const brokerName = calendarBrokerLabel(contract, client);
   const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
   const isCheckout = event.type === "checkout";
+  const isCourtesy = contract.paymentStatus === "cortesia" && !isCheckout;
   const operationalLines = calendarOperationalLines(event);
-  return `<div class="export-event ${isCheckout ? "checkout" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saida - " : ""}${escapeHtml(shortName(clientName))}</small><small>Hóspedes: ${contract.guests || 0}</small>${brokerName ? `<small>Corretor: ${escapeHtml(shortName(brokerName))}</small>` : ""}${operationalLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("")}</div>`;
+  return `<div class="export-event ${isCheckout ? "checkout" : ""} ${isCourtesy ? "courtesy" : ""}" style="--event-color:${escapeHtml(color)};--event-bg:${escapeHtml(hexToRgba(color, 0.13))}"><span>${escapeHtml(aptName)}</span><small>${isCheckout ? "Saída: " : ""}${escapeHtml(shortName(clientName))}</small><small>Hósp.: ${escapeHtml(calendarGuestsLabel(contract))}</small>${isCourtesy ? "<small>Cortesia</small>" : ""}${brokerName ? `<small>Cor: ${escapeHtml(shortName(brokerName))}</small>` : ""}${operationalLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("")}</div>`;
 }
 
 function hexToRgba(hex, alpha) {
@@ -1742,7 +1845,7 @@ function calendarWhatsappSummary(month, apartmentId = "") {
     const brokerName = calendarBrokerLabel(contract, client);
     const operational = calendarOperationalLines({ contract, type: "stay", date: contract.checkIn });
     const observation = calendarReservationObservation(contract);
-    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${contract.guests || 0} adulto(s)${brokerName ? ` - Corretor: ${shortName(brokerName)}` : ""}${operational.length ? ` - ${operational.join(" - ")}` : ""}${observation ? ` - Obs: ${observation}` : ""}`);
+    lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - ${shortName(client?.name || "Reserva simples")} - ${apt?.name || "Apto"} - ${calendarGuestsLabel(contract)}${contract.paymentStatus === "cortesia" ? ` - Cortesia (${nights(contract.checkIn, contract.checkOut)} diaria(s))` : ""}${brokerName ? ` - Corretor: ${shortName(brokerName)}` : ""}${operational.length ? ` - ${operational.join(" - ")}` : ""}${observation ? ` - Obs: ${observation}` : ""}`);
   });
   if (lines.length === 1 || (apartmentId && lines.length === 2)) lines.push("Sem reservas no periodo.");
   return lines.join("\n");
@@ -1940,10 +2043,10 @@ function getAccessUrl() {
   const isLocalHost = location.hostname === "127.0.0.1" || location.hostname === "localhost";
   const base = location.protocol.startsWith("http") && !isLocalHost ? location.href : WEB_ACCESS_URL;
   const url = new URL(base, location.href);
-  const loginPath = isLocalHost ? "login.html" : "login";
+  const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.41-auto-20260717-1224");
+  url.searchParams.set("v", "2.1.48-auto-20260801-0948");
   return url.toString();
 }
 
@@ -1975,7 +2078,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.41-auto-20260717-1224");
+  location.replace("login.html?v=2.1.48-auto-20260801-0948");
 }
 
 async function handleSyncAction(action) {
@@ -1990,7 +2093,7 @@ async function handleSyncAction(action) {
       const remote = await window.LocacoesSupabaseSync.loadRemote();
       if (remote?.data) state = normalize(remote.data);
       else await window.LocacoesSupabaseSync.saveNow(state);
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      persistLocalSnapshot(state, { source: "supabase-login" });
       render();
       toast("Supabase conectado.");
     }
@@ -1998,7 +2101,7 @@ async function handleSyncAction(action) {
       const remote = await window.LocacoesSupabaseSync.loadRemote();
       if (!remote?.data) return toast("Nenhum dado na nuvem.");
       state = normalize(remote.data);
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      persistLocalSnapshot(state, { source: "supabase-pull" });
       render();
       toast("Dados baixados da nuvem.");
     }
@@ -2131,6 +2234,8 @@ document.querySelector("#importFile").addEventListener("change", (event) => {
 });
 
 window.addEventListener("DOMContentLoaded", async () => {
+  await hydrateStateFromIndexedDb();
+  const durablePending = await window.LocacoesSupabaseSync?.restoreDurableQueue?.();
   const version = document.querySelector("#versionLabel");
   if (version) version.textContent = APP_VERSION_LABEL + " - " + APP_CHANGE_DATE_LABEL;
   updateTopbarAccess();
@@ -2157,10 +2262,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     cacheOfflineUser(user);
     updateTopbarAccess();
+    if (durablePending?.value && navigator.onLine) {
+      await window.LocacoesSupabaseSync.flushDurableQueue();
+    }
     const remote = await window.LocacoesSupabaseSync.loadRemote();
-    if (remote?.data && (!state.meta?.updatedAt || remote.updatedAt > state.meta.updatedAt)) {
+    if (remote?.data && !durablePending?.value && (!state.meta?.updatedAt || remote.updatedAt > state.meta.updatedAt)) {
       state = normalize(remote.data);
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      persistLocalSnapshot(state, { source: "supabase-boot" });
     }
     document.body.classList.remove("auth-pending");
     render();
@@ -2175,6 +2283,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
+
+
+
+
 
 
 

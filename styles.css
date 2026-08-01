@@ -856,12 +856,13 @@ h3 {
 }
 
 .annual-revenue-matrix {
-  overflow: visible;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
 .annual-revenue-matrix table {
   width: 100%;
-  min-width: 0;
+  min-width: max(720px, calc(var(--annual-columns, 4) * 112px));
   table-layout: fixed;
 }
 
@@ -911,7 +912,7 @@ h3 {
 
 .annual-revenue-table th:first-child,
 .annual-revenue-table td:first-child {
-  width: 13%;
+  width: 92px;
   padding-left: 5px;
   text-align: left;
 }
@@ -1067,28 +1068,33 @@ td {
 .reservations-page .table-wrap {
   border: 1px solid var(--line);
   border-radius: 8px;
+  overflow-x: hidden;
 }
 
 .reservations-page table {
-  min-width: 1180px;
-  table-layout: auto;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .reservations-page th,
 .reservations-page td {
+  min-width: 0;
   max-width: none;
-  padding: 12px 9px;
-  line-height: 1.45;
+  padding: 9px 5px;
+  font-size: clamp(0.64rem, 0.76vw, 0.78rem);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
-.reservations-page th:nth-child(1) { min-width: 150px; }
-.reservations-page th:nth-child(2) { min-width: 140px; }
-.reservations-page th:nth-child(3) { min-width: 130px; }
-.reservations-page th:nth-child(4) { min-width: 130px; }
-.reservations-page th:nth-child(5) { min-width: 120px; }
-.reservations-page th:nth-child(6) { min-width: 190px; }
-.reservations-page th:nth-child(7) { min-width: 115px; }
-.reservations-page th:nth-child(8) { min-width: 150px; }
+.reservations-page th:nth-child(1) { width: 12%; }
+.reservations-page th:nth-child(2) { width: 12%; }
+.reservations-page th:nth-child(3) { width: 12%; }
+.reservations-page th:nth-child(4) { width: 12%; }
+.reservations-page th:nth-child(5) { width: 9%; }
+.reservations-page th:nth-child(6) { width: 18%; }
+.reservations-page th:nth-child(7) { width: 10%; }
+.reservations-page th:nth-child(8) { width: 15%; }
 
 .reservation-period,
 .reservation-finance,
@@ -1101,6 +1107,18 @@ td {
 .reservations-page td:last-child .filters,
 .guests-page td:last-child .filters {
   flex-wrap: nowrap;
+}
+
+.reservations-page td:last-child .filters {
+  gap: 3px;
+}
+
+.reservations-page td:last-child .ghost-button {
+  min-height: 28px;
+  padding: 5px 6px;
+  font-size: clamp(0.59rem, 0.7vw, 0.72rem);
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .guests-page table {
@@ -1310,7 +1328,8 @@ th {
 .calendar-scroll {
   max-width: 100%;
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1366,16 +1385,16 @@ th {
 
 .event {
   display: grid;
-  gap: 2px;
-  margin-top: 4px;
-  padding: 5px 6px;
+  gap: 1px;
+  margin-top: 3px;
+  padding: 4px 5px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--apt-color, #2563eb) 22%, #fff);
   border-left: 4px solid var(--apt-color, #2563eb);
   color: #0f172a;
-  font-size: 0.68rem;
+  font-size: 0.61rem;
   font-weight: 800;
-  line-height: 1.12;
+  line-height: 1.05;
   overflow: hidden;
 }
 
@@ -1389,7 +1408,20 @@ th {
 
 .event small {
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.55rem;
+}
+
+.event .event-client,
+.event .event-broker {
+  font-size: 0.53rem;
+}
+
+.event .event-guests {
+  color: #0f172a;
+  font-size: 0.59rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-overflow: clip;
 }
 
 .event.blocked {
@@ -1401,6 +1433,26 @@ th {
   background: #fff7ed;
   border-left-style: dashed;
   color: #9a3412;
+}
+
+.event.courtesy {
+  outline: 2px solid #7c3aed;
+  background: #f3e8ff !important;
+}
+
+.event .event-courtesy {
+  color: #6d28d9;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.field.courtesy-disabled {
+  opacity: .65;
+}
+
+.field.courtesy-disabled input:disabled {
+  cursor: not-allowed;
+  background: #e5e7eb;
 }
 
 .event.has-alert {
@@ -1491,7 +1543,14 @@ th {
 }
 
 .reservation-dialog .dialog-actions {
-  margin-top: 10px;
+  align-self: end;
+  grid-column: span 2;
+  margin-top: 0;
+  min-height: 36px;
+}
+
+.reservation-dialog [data-field-key="cancellationPolicy"] {
+  grid-column: span 2;
 }
 
 .dialog-head,
@@ -1843,6 +1902,11 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .reservation-dialog [data-field-key="cancellationPolicy"],
+  .reservation-dialog .dialog-actions {
+    grid-column: 1;
+  }
+
   .reservation-filters {
     align-items: stretch;
     flex-direction: column;
@@ -1895,9 +1959,12 @@ th {
   .calendar-panel:fullscreen {
     width: 100%;
     height: 100dvh;
+    min-height: 0;
     max-width: none;
     margin: 0;
     padding: 8px;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
     border: 0;
     border-radius: 0;
@@ -1907,6 +1974,7 @@ th {
 
   body.calendar-mobile-mode .calendar-mobile-head,
   .calendar-panel:fullscreen .calendar-mobile-head {
+    flex: 0 0 auto;
     min-height: 42px;
     display: flex;
     align-items: center;
@@ -1933,6 +2001,7 @@ th {
 
   body.calendar-mobile-mode .calendar-panel > .toolbar,
   .calendar-panel:fullscreen > .toolbar {
+    flex: 0 0 auto;
     position: relative;
     z-index: 2;
     margin-bottom: 8px;
@@ -1979,15 +2048,23 @@ th {
 
   body.calendar-mobile-mode .calendar-scroll,
   .calendar-panel:fullscreen .calendar-scroll {
-    height: calc(100dvh - 116px);
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
     padding-bottom: 8px;
     overflow: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    touch-action: pan-x pan-y pinch-zoom;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.calendar-mobile-mode .calendar,
   .calendar-panel:fullscreen .calendar {
-    width: max(100%, 880px);
-    grid-template-columns: repeat(7, minmax(118px, 1fr));
+    width: max(100%, 760px);
+    min-height: max-content;
+    grid-template-columns: repeat(7, minmax(100px, 1fr));
     gap: 5px;
   }
 
@@ -1995,6 +2072,22 @@ th {
   .calendar-panel:fullscreen .day {
     min-height: 92px;
     padding: 5px;
+    overflow: visible;
+  }
+
+  body.calendar-mobile-mode .event,
+  .calendar-panel:fullscreen .event {
+    overflow: visible;
+  }
+
+  body.calendar-mobile-mode .event strong,
+  body.calendar-mobile-mode .event small,
+  .calendar-panel:fullscreen .event strong,
+  .calendar-panel:fullscreen .event small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   body.calendar-mobile-mode .day.compact,

@@ -3,6 +3,8 @@
   const defaults = window.LOCACOES_SUPABASE_DEFAULTS || {};
   const table = defaults.table || "locacoes_state";
   const rowId = defaults.rowId || "main";
+  const OUTBOX_KEY = `${table}:${rowId}`;
+  const offlineDatabase = window.createOfflineDatabase?.({ dbName: "app-locacao-offline-v1" }) || null;
 
   let client = null;
   let user = null;
@@ -85,6 +87,7 @@
   }
 
   async function saveNow(appState) {
+    const snapshot = structuredClone(appState);
     const sb = ensureClient();
     await restoreSession();
     if (!user) throw new Error("Entre no Supabase antes de sincronizar.");
@@ -92,20 +95,42 @@
     const payload = {
       id: rowId,
       user_id: user.id,
-      data: appState,
+      data: snapshot,
       updated_at: new Date().toISOString()
     };
     const { error } = await sb.from(table).upsert(payload, { onConflict: "user_id,id" });
     if (error) throw error;
+    if (offlineDatabase) {
+      const pending = await offlineDatabase.getPending(OUTBOX_KEY).catch(() => null);
+      if (pending?.value && JSON.stringify(pending.value) === JSON.stringify(snapshot)) {
+        await offlineDatabase.removePending(OUTBOX_KEY);
+      }
+    }
     emit(`Sincronizado como ${user.email}`);
   }
 
   function queueSave(appState) {
+    const snapshot = structuredClone(appState);
+    offlineDatabase?.enqueue(OUTBOX_KEY, snapshot, { reason: navigator.onLine ? "debounce" : "offline" })
+      .catch((error) => console.warn("[Supabase] Fila IndexedDB indisponível:", error));
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       if (!client || !user || !navigator.onLine) return;
-      saveNow(appState).catch((error) => emit(error.message || "Falha ao sincronizar."));
+      saveNow(snapshot).catch((error) => emit(error.message || "Falha ao sincronizar."));
     }, 1200);
+  }
+
+  async function flushDurableQueue() {
+    if (!offlineDatabase || !navigator.onLine || !client || !user) return null;
+    const pending = await offlineDatabase.getPending(OUTBOX_KEY);
+    if (!pending?.value) return null;
+    await saveNow(pending.value);
+    return pending;
+  }
+
+  async function restoreDurableQueue() {
+    if (!offlineDatabase) return null;
+    return offlineDatabase.getPending(OUTBOX_KEY).catch(() => null);
   }
 
   window.LocacoesSupabaseSync = {
@@ -116,6 +141,8 @@
     loadRemote,
     saveNow,
     queueSave,
+    flushDurableQueue,
+    restoreDurableQueue,
     getUser: () => user,
     getStatus: () => status,
     onStatus: (handler) => {
@@ -123,4 +150,8 @@
       handler(status);
     }
   };
+
+  window.addEventListener("online", () => {
+    flushDurableQueue().catch((error) => emit(error.message || "Falha ao reenviar alterações pendentes."));
+  });
 })();

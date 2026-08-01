@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
-$baseVersion = "2.1.41"
+$baseVersion = "2.1.48"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
@@ -51,6 +51,7 @@ function Update-VersionInFile([string]$Path) {
   $text = $text -replace 'v=2\.1\.[^"''&<\s]+', "v=$versionSlug"
   $text = $text -replace 'const APP_VERSION_LABEL = "[^"]+";', ('const APP_VERSION_LABEL = "v{0}";' -f $versionSlug)
   $text = $text -replace 'const appVersion = "[^"]+";', ('const appVersion = "{0}";' -f $localVersion)
+  $text = $text -replace 'const appVersionCurrent = "[^"]+";', ('const appVersionCurrent = "{0}";' -f $localVersion)
   $text = $text -replace 'url\.searchParams\.set\("v", "[^"]+"\);', ('url.searchParams.set("v", "{0}");' -f $versionSlug)
   Set-TextFile $Path $text
 }
@@ -174,5 +175,9 @@ Invoke-Git pull --rebase origin main
 Invoke-Git push origin main
 Write-Host "GitHub atualizado com sucesso. O Vercel/GitHub Pages deve publicar a versao $versionSlug automaticamente."
 Write-Host "Depois da publicacao, o QR passara a abrir a versao atualizada."
+
+
+
+
 
 

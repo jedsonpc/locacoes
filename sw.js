@@ -1,7 +1,7 @@
-﻿const appVersion = "local-2.1.45-auto-20260718-1325";
-const appVersionCurrent = "local-2.1.47-offline-20260730";
+﻿const appVersion = "local-2.1.48-auto-20260801-0948";
+const appVersionCurrent = "local-2.1.48-auto-20260801-0948";
 const cachePrefix = "app-locacao-";
-const cacheName = `${cachePrefix}${appVersionCurrent}-login-update-prompt-20260731`;
+const cacheName = `${cachePrefix}${appVersionCurrent}`;
 const staticFiles = [
   "./",
   "./index.html",
