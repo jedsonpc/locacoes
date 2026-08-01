@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.48-auto-20260801-0948";
+const APP_VERSION_LABEL = "v2.1.48-auto-20260801-1008";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -516,6 +516,17 @@ function monthlyContractRevenue(contract, month) {
   return contractTotals(contract).total * (occupiedNights / totalNights);
 }
 
+function contractRevenueForPeriod(contract, start, end) {
+  if (!start || !end || start > end || contract.status === "cancelada") return 0;
+  const periodStart = parseDate(start);
+  const periodFinish = parseDate(addDays(end, 1));
+  const begin = parseDate(contract.checkIn) > periodStart ? parseDate(contract.checkIn) : periodStart;
+  const finish = parseDate(contract.checkOut) < periodFinish ? parseDate(contract.checkOut) : periodFinish;
+  const occupiedNights = Math.max(0, Math.round((finish - begin) / oneDay));
+  const totalNights = Math.max(1, nights(contract.checkIn, contract.checkOut));
+  return contractTotals(contract).total * (occupiedNights / totalNights);
+}
+
 function contractTouchesMonth(contract, month) {
   const { start, end } = monthRange(month);
   return parseDate(contract.checkIn) <= end && parseDate(contract.checkOut) > start && contract.status !== "cancelada";
@@ -1015,24 +1026,25 @@ function reportsView() {
   const previousContracts = validPeriod ? reportContractsForPeriod(previousStart, previousEnd, apartmentId, false) : [];
   const expenses = validPeriod ? reportExpensesForPeriod(periodStart, periodEnd, apartmentId) : [];
   const previousExpenses = validPeriod ? reportExpensesForPeriod(previousStart, previousEnd, apartmentId) : [];
-  const current = reportPeriodMetrics(activeContracts, expenses);
-  const previous = reportPeriodMetrics(previousContracts, previousExpenses);
+  const current = reportPeriodMetrics(activeContracts, expenses, periodStart, periodEnd);
+  const previous = reportPeriodMetrics(previousContracts, previousExpenses, previousStart, previousEnd);
   const chartContracts = validPeriod ? state.contracts.filter((contract) => contract.status !== "cancelada" && (!apartmentId || contract.apartmentId === apartmentId) && String(contract.checkIn || "") <= periodEnd && String(contract.checkOut || "") > periodStart) : [];
   const buckets = reportPeriodBuckets(periodStart, periodEnd, chartContracts);
   const brokerRows = state.brokers.map((broker) => {
     const contracts = activeContracts.filter((contract) => contract.brokerId === broker.id);
-    return [escapeHtml(broker.name), contracts.length, money(contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0))];
+    return [escapeHtml(broker.name), contracts.length, money(contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, periodStart, periodEnd) * (contractBrokerPercent(contract) / 100), 0))];
   }).filter((row) => row[1]);
   const periodRows = listedContracts.map((contract) => {
-    const totals = contractTotals(contract);
+    const periodRevenue = contractRevenueForPeriod(contract, periodStart, periodEnd);
+    const periodCommission = periodRevenue * (contractBrokerPercent(contract) / 100);
     const broker = getById("brokers", contract.brokerId);
     return [
       `${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)}`,
       escapeHtml(getById("clients", contract.clientId)?.name || "-"),
       escapeHtml(getById("apartments", contract.apartmentId)?.name || "-"),
       escapeHtml(broker?.name || "Sem corretor"),
-      contract.paymentStatus === "cortesia" ? "Cortesia" : money(totals.total),
-      contract.commissionAlreadyDeducted === "sim" ? "Ja compensada" : money(totals.commission),
+      contract.paymentStatus === "cortesia" ? "Cortesia" : money(periodRevenue),
+      contract.commissionAlreadyDeducted === "sim" ? "Ja compensada" : money(periodCommission),
       status(contract.status)
     ];
   });
@@ -1045,7 +1057,7 @@ function reportsView() {
     <div data-report-key="evolution">${reportEvolutionPanel(buckets, apartmentId)}</div>
     <div data-report-key="annual">${annualBrokerRevenuePanel(annualYear, apartmentId)}</div>
     <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2>${scopeTag}</div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2>${scopeTag}</div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>
-    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2>${scopeTag}</div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section></div>`;
+    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2>${scopeTag}</div></div><p class="muted block-help">${listedContracts.length} reserva(s) com diarias entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}. Valores e comissoes sao proporcionais as diarias dentro do periodo.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor no periodo", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section></div>`;
 }
 
 function reportScopeTag(apartmentId = "") {
@@ -1075,7 +1087,7 @@ function reportContractsForPeriod(start, end, apartmentId = "", includeCancelled
   return [...state.contracts]
     .filter((contract) => includeCancelled || contract.status !== "cancelada")
     .filter((contract) => !apartmentId || contract.apartmentId === apartmentId)
-    .filter((contract) => String(contract.checkIn || "") >= start && String(contract.checkIn || "") <= end)
+    .filter((contract) => String(contract.checkIn || "") <= end && String(contract.checkOut || "") > start)
     .sort((a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || "")));
 }
 
@@ -1083,11 +1095,17 @@ function reportExpensesForPeriod(start, end, apartmentId = "") {
   return state.expenses.filter((expense) => String(expense.date || "") >= start && String(expense.date || "") <= end && (!apartmentId || expense.apartmentId === apartmentId));
 }
 
-function reportPeriodMetrics(contracts, expenses) {
-  const revenue = contracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
-  const commission = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+function reportPeriodMetrics(contracts, expenses, start, end) {
+  const revenue = contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, start, end), 0);
+  const commission = contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, start, end) * (contractBrokerPercent(contract) / 100), 0);
   const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
-  const courtesyDays = contracts.filter((contract) => contract.paymentStatus === "cortesia").reduce((sum, contract) => sum + nights(contract.checkIn, contract.checkOut), 0);
+  const courtesyDays = contracts.filter((contract) => contract.paymentStatus === "cortesia").reduce((sum, contract) => {
+    const periodStart = parseDate(start);
+    const periodFinish = parseDate(addDays(end, 1));
+    const begin = parseDate(contract.checkIn) > periodStart ? parseDate(contract.checkIn) : periodStart;
+    const finish = parseDate(contract.checkOut) < periodFinish ? parseDate(contract.checkOut) : periodFinish;
+    return sum + Math.max(0, Math.round((finish - begin) / oneDay));
+  }, 0);
   return { reservations: contracts.length, revenue, commission, expenses: expenseTotal, net: revenue - commission - expenseTotal, courtesyDays };
 }
 
@@ -2046,7 +2064,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.48-auto-20260801-0948");
+  url.searchParams.set("v", "2.1.48-auto-20260801-1008");
   return url.toString();
 }
 
@@ -2078,7 +2096,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.48-auto-20260801-0948");
+  location.replace("login.html?v=2.1.48-auto-20260801-1008");
 }
 
 async function handleSyncAction(action) {
@@ -2283,6 +2301,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
