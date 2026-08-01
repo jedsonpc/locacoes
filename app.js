@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.48-auto-20260801-1008";
+const APP_VERSION_LABEL = "v2.1.48-auto-20260801-1052";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -11,6 +11,7 @@ const offlineDatabase = window.createOfflineDatabase?.({ dbName: "app-locacao-of
 const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const valueFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const moneyFieldKeys = new Set(["baseDaily", "cleaningFee", "defaultSecurityDeposit", "reservationTotal", "dailyRate", "discount", "deposit", "securityDeposit", "firstPayment", "amount"]);
+const integerFieldMinimums = new Map([["guests", 1], ["children", 0], ["rooms", 0], ["maxGuests", 1]]);
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -1491,7 +1492,10 @@ function fieldHtml(field) {
   const isMoney = moneyFieldKeys.has(field.key);
   const inputType = isMoney ? "text" : field.type;
   const value = isMoney ? brazilianValue(field.value) : field.value;
-  return `<div class="field${full}" data-field-key="${field.key}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${inputType}" value="${escapeHtml(value)}" ${isMoney ? "inputmode='decimal' data-money-field" : field.type === "number" ? "step='0.01'" : ""} ${field.readonly ? "readonly" : ""} ${required} /></div>`;
+  const numberRules = integerFieldMinimums.has(field.key)
+    ? `step="1" min="${integerFieldMinimums.get(field.key)}" inputmode="numeric"`
+    : field.type === "number" ? "step='0.01'" : "";
+  return `<div class="field${full}" data-field-key="${field.key}"><label for="${field.key}">${field.label}</label><input id="${field.key}" name="${field.key}" type="${inputType}" value="${escapeHtml(value)}" ${isMoney ? "inputmode='decimal' data-money-field" : numberRules} ${field.readonly ? "readonly" : ""} ${required} /></div>`;
 }
 
 function submitForm(event) {
@@ -1508,6 +1512,13 @@ function submitForm(event) {
   const record = Object.fromEntries(new FormData(event.currentTarget).entries());
   fields.filter((field) => field.type === "number").forEach((field) => record[field.key] = toNumber(record[field.key]));
   fields.filter((field) => field.type === "checkbox").forEach((field) => record[field.key] = record[field.key] === "sim" ? "sim" : "nao");
+
+  for (const [key, minimum] of integerFieldMinimums) {
+    if (!(key in record)) continue;
+    const field = fields.find((item) => item.key === key);
+    if (!Number.isInteger(record[key])) return toast(`${field?.label || key} deve ser informado com numero inteiro.`);
+    if (record[key] < minimum) return toast(`${field?.label || key} deve ser igual ou maior que ${minimum}.`);
+  }
 
   if (collection === "clients") {
     const documentError = validateDocumentValue(record.document);
@@ -2064,7 +2075,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.48-auto-20260801-1008");
+  url.searchParams.set("v", "2.1.48-auto-20260801-1052");
   return url.toString();
 }
 
@@ -2096,7 +2107,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.48-auto-20260801-1008");
+  location.replace("login.html?v=2.1.48-auto-20260801-1052");
 }
 
 async function handleSyncAction(action) {
@@ -2301,6 +2312,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
