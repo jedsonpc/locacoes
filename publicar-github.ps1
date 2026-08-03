@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = "D:\github\locacoes"
-$baseVersion = "2.1.48"
+$baseVersion = "2.1.49"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"
@@ -54,6 +54,10 @@ function Update-VersionInFile([string]$Path) {
   $text = $text -replace 'url\.searchParams\.set\("v", "[^"]+"\);', ('url.searchParams.set("v", "{0}");' -f $versionSlug)
   Set-TextFile $Path $text
 }
+
+# Sincroniza primeiro para que a publicação seja automática e não pare em
+# conflitos criados por um pull executado somente depois do commit local.
+Invoke-Git pull --rebase origin main
 
 foreach ($file in @("app.js", "index.html", "login.html", "sw.js")) {
   Update-VersionInFile (Join-Path $appRoot $file)
@@ -170,7 +174,6 @@ if (-not $changes) {
 }
 
 Invoke-Git commit -m $message
-Invoke-Git pull --rebase origin main
 Invoke-Git push origin main
 Write-Host "GitHub atualizado com sucesso. O Vercel/GitHub Pages deve publicar a versao $versionSlug automaticamente."
 Write-Host "Depois da publicacao, o QR passara a abrir a versao atualizada."
