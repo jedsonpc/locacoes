@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repo = Join-Path $env:LOCALAPPDATA "LocacoesPublisher\repo"
+$repo = "D:\github\locacoes"
 $baseVersion = "2.1.48"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
@@ -51,7 +51,6 @@ function Update-VersionInFile([string]$Path) {
   $text = $text -replace 'v=2\.1\.[^"''&<\s]+', "v=$versionSlug"
   $text = $text -replace 'const APP_VERSION_LABEL = "[^"]+";', ('const APP_VERSION_LABEL = "v{0}";' -f $versionSlug)
   $text = $text -replace 'const appVersion = "[^"]+";', ('const appVersion = "{0}";' -f $localVersion)
-  $text = $text -replace 'const appVersionCurrent = "[^"]+";', ('const appVersionCurrent = "{0}";' -f $localVersion)
   $text = $text -replace 'url\.searchParams\.set\("v", "[^"]+"\);', ('url.searchParams.set("v", "{0}");' -f $versionSlug)
   Set-TextFile $Path $text
 }

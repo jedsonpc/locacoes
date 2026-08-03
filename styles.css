@@ -1543,14 +1543,7 @@ th {
 }
 
 .reservation-dialog .dialog-actions {
-  align-self: end;
-  grid-column: span 2;
-  margin-top: 0;
-  min-height: 36px;
-}
-
-.reservation-dialog [data-field-key="cancellationPolicy"] {
-  grid-column: span 2;
+  margin-top: 10px;
 }
 
 .dialog-head,
@@ -1900,11 +1893,6 @@ th {
 
   .reservation-dialog .form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .reservation-dialog [data-field-key="cancellationPolicy"],
-  .reservation-dialog .dialog-actions {
-    grid-column: 1;
   }
 
   .reservation-filters {

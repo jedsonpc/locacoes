@@ -1,7 +1,7 @@
-﻿const appVersion = "local-2.1.48-auto-20260801-1052";
-const appVersionCurrent = "local-2.1.48-auto-20260801-1052";
+﻿const appVersion = "local-2.1.48-auto-20260803-1514";
+const appVersionCurrent = "local-2.1.47-offline-20260730";
 const cachePrefix = "app-locacao-";
-const cacheName = `${cachePrefix}${appVersionCurrent}`;
+const cacheName = `${cachePrefix}${appVersionCurrent}-login-update-prompt-20260731`;
 const staticFiles = [
   "./",
   "./index.html",
@@ -52,8 +52,6 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
-
-
 
 
 

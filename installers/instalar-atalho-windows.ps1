@@ -5,10 +5,9 @@ $installRoot = Join-Path $env:LOCALAPPDATA "LocacoesApp"
 $installApp = Join-Path $installRoot "app"
 $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
-$iconFile = Join-Path $installApp "cupe-beach-living.ico"
+$iconFile = Join-Path $packageRoot "cupe-beach-living.ico"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
-$appVersion = "2.1.41-hospedes-20260717"
-$onlineUrl = "https://locacoes-publish.vercel.app/"
+$appVersion = "2.1.24-institucional-20260710"
 $port = 8787
 
 if (!(Test-Path (Join-Path $packageRoot "index.html"))) {
@@ -87,8 +86,7 @@ while (`$true) {
 
 `$AppDir = Join-Path `$PSScriptRoot "app"
 `$LoginFile = Join-Path `$AppDir "login.html"
-`$OnlineUrl = "$onlineUrl"
-`$LocalUrl = "http://127.0.0.1:$port/login.html?v=$appVersion"
+`$Url = "http://127.0.0.1:$port/login.html?v=$appVersion"
 `$PidFile = Join-Path `$PSScriptRoot "locacoes-server.pid"
 `$BundledPython = "C:\Users\Edson\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 `$ServerScript = Join-Path `$PSScriptRoot "servidor-locacoes.ps1"
@@ -98,16 +96,12 @@ function Open-Browser(`$target) {
   `$chrome = Get-Command "chrome.exe" -ErrorAction SilentlyContinue
 
   if (`$edge) {
-    Add-Type -AssemblyName System.Windows.Forms
-    `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    Start-Process -FilePath `$edge.Source -ArgumentList "--start-maximized","--app=`$target","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)"
+    Start-Process -FilePath `$edge.Source -ArgumentList "--app=`$target"
     return
   }
 
   if (`$chrome) {
-    Add-Type -AssemblyName System.Windows.Forms
-    `$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    Start-Process -FilePath `$chrome.Source -ArgumentList "--start-maximized","--app=`$target","--window-position=0,0","--window-size=`$(`$screen.Width),`$(`$screen.Height)"
+    Start-Process -FilePath `$chrome.Source -ArgumentList "--app=`$target"
     return
   }
 
@@ -116,25 +110,11 @@ function Open-Browser(`$target) {
 
 function Test-LocalServer {
   try {
-    `$response = Invoke-WebRequest -Uri `$LocalUrl -UseBasicParsing -TimeoutSec 2
+    `$response = Invoke-WebRequest -Uri `$Url -UseBasicParsing -TimeoutSec 2
     return `$response.StatusCode -ge 200 -and `$response.StatusCode -lt 500
   } catch {
     return `$false
   }
-}
-
-function Test-OnlineApp {
-  try {
-    `$response = Invoke-WebRequest -Uri "https://locacoes-publish.vercel.app/version.json?_=`$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -UseBasicParsing -TimeoutSec 5
-    return `$response.StatusCode -eq 200
-  } catch {
-    return `$false
-  }
-}
-
-if (Test-OnlineApp) {
-  Open-Browser `$OnlineUrl
-  exit 0
 }
 
 if (!(Test-Path `$LoginFile)) {
@@ -171,7 +151,7 @@ if (!(Test-LocalServer)) {
 }
 
 if (Test-LocalServer) {
-  Open-Browser `$LocalUrl
+  Open-Browser `$Url
 } else {
   Open-Browser `$LoginFile
 }
@@ -191,9 +171,9 @@ $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powersh
 
 foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
   $shortcut = $shell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = $powershell
-  $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`""
-  $shortcut.WorkingDirectory = $installRoot
+  $shortcut.TargetPath = (Join-Path $packageRoot "login.html")
+  $shortcut.Arguments = ""
+  $shortcut.WorkingDirectory = $packageRoot
   $shortcut.Description = "Abrir Cupe Beach Living diretamente na tela de login"
   if (Test-Path $iconFile) {
     $shortcut.IconLocation = "$iconFile,0"
