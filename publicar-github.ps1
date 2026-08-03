@@ -2,7 +2,7 @@
 
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = "D:\github\locacoes"
-$baseVersion = "2.1.50"
+$baseVersion = "2.1.51"
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $versionSlug = "$baseVersion-auto-$stamp"
 $localVersion = "local-$versionSlug"

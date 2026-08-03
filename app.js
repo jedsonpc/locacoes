@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.50-auto-20260803-1542";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260803-1602";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -805,11 +805,13 @@ function contracts() {
   const end = state.settings.contractFilterEnd || "";
   const apartmentId = state.settings.contractFilterApartment || "";
   const hasFilters = Boolean(start || end || apartmentId);
-  const ordered = filtered("contracts")
+  const matching = filtered("contracts")
     .filter((contract) => !apartmentId || contract.apartmentId === apartmentId)
     .filter((contract) => !start || String(contract.checkOut || "") >= start)
-    .filter((contract) => !end || String(contract.checkIn || "") <= end)
-    .sort((a, b) => String(b.createdAt || b.checkIn || "").localeCompare(String(a.createdAt || a.checkIn || "")) || String(b.checkOut || "").localeCompare(String(a.checkOut || "")));
+    .filter((contract) => !end || String(contract.checkIn || "") <= end);
+  const ordered = matching.sort(hasFilters
+    ? (a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || ""))
+    : (a, b) => String(b.createdAt || b.checkIn || "").localeCompare(String(a.createdAt || a.checkIn || "")) || String(b.checkOut || "").localeCompare(String(a.checkOut || "")));
   const items = hasFilters ? ordered : ordered.slice(0, 5);
   const listInfo = hasFilters ? `${items.length} reserva(s) encontrada(s)` : `Exibindo os ${Math.min(5, ordered.length)} registros mais recentes`;
   return `<section class="panel reservations-page"><div class="toolbar"><div><p class="eyebrow">Cadastro</p><h2>Reservas e Contratos</h2></div><div class="filters"><button class="ghost-button" data-export="contracts" type="button">Exportar CSV</button></div></div><div class="filters reservation-filters"><label class="field">Período inicial<input id="contractFilterStart" type="date" value="${escapeHtml(start)}"></label><label class="field">Período final<input id="contractFilterEnd" type="date" value="${escapeHtml(end)}"></label><label class="field">Apartamento<select id="contractFilterApartment">${optionList("apartments", apartmentId, "Todos os apartamentos")}</select></label><button class="ghost-button" data-clear-reservation-filters type="button" ${hasFilters ? "" : "disabled"}>Limpar filtros</button></div><p class="muted block-help">${listInfo}</p>${items.length ? table(["Período", "Hóspede", "Apartamento", "Proprietário", "Hóspedes", "Financeiro", "Status", "Ações"], items.map((contract) => contractRow(contract))) : empty("Nenhuma reserva encontrada para os filtros informados.")}</section>`;
@@ -953,7 +955,7 @@ function contractDocumentHtml(contract) {
     ? `<li>Pagamento integral no valor de ${moneyWithWords(totals.total)}.</li>`
     : contract.paymentStatus === "parcial"
       ? [
-          `<li>1º pagamento no valor de ${moneyWithWords(contract.deposit)}${contract.firstPaymentDate ? ` - recebido em ${dateBR(contract.firstPaymentDate)}` : ""}.</li>`,
+          `<li>Sinal no valor de ${moneyWithWords(contract.deposit)}${contract.firstPaymentDate ? ` - recebido em ${dateBR(contract.firstPaymentDate)}` : ""}.</li>`,
           toNumber(contract.secondPayment) > 0 ? `<li>2ª parcela no valor de ${moneyWithWords(contract.secondPayment)}${contract.secondPaymentPaid === "sim" ? " - paga" : contract.secondPaymentDueDate ? ` - vencimento em ${dateBR(contract.secondPaymentDueDate)}` : ""}.</li>` : "",
           toNumber(contract.finalPayment) > 0 ? `<li>Parcela final no valor de ${moneyWithWords(contract.finalPayment)}${contract.finalPaymentPaid === "sim" ? " - paga" : contract.finalPaymentDueDate ? ` - vencimento em ${dateBR(contract.finalPaymentDueDate)}` : ""}.</li>` : ""
         ].filter(Boolean).join("")
@@ -1373,7 +1375,7 @@ function fieldsFor(collection, record = {}) {
       ["name", "Nome", "text", null, true], ["phone", "Telefone", "text"], ["email", "E-mail", "email"], ["commissionDefault", "Comissao padrao (%)", "number"], ["status", "Status", "select", [["ativo", "Ativo"], ["inativo", "Inativo"]]], ["notes", "Observacoes", "textarea"]
     ],
     contracts: [
-      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"], ["cortesia", "Cortesia"]], false, "pendente"], ["isAirbnb", "Reserva atraves do Airbnb", "checkbox", null, false, "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "1ª Parcela", "number", null, false, 0], ["firstPaymentDate", "Data", "date"], ["secondPayment", "2ª Parcela", "number", null, false, 0], ["secondPaymentDueDate", "Vencimento", "date"], ["secondPaymentPaid", "2ª parcela paga (dar baixa)", "checkbox", null, false, "nao"], ["finalPayment", "Parcela final", "number", null, false, 0], ["finalPaymentDueDate", "Vencimento", "date"], ["finalPaymentPaid", "Parcela final paga (dar baixa)", "checkbox", null, false, "nao"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
+      ["code", "Codigo", "text", null, false, `CTR-${Date.now().toString().slice(-6)}`], ["hasFormalContract", "Havera contrato formal?", "select", [["sim", "Sim"], ["nao", "Nao"]], false, "nao"], ["status", "Status", "select", [["reservada", "Reservada"], ["confirmada", "Confirmada"], ["hospedada", "Hospedada"], ["finalizada", "Finalizada"], ["cancelada", "Cancelada"]]], ["clientId", "Cliente", "select", clientOptions, false, defaultReservationClientId], ["apartmentId", "Apartamento", "select", aptOptions, true], ["brokerId", "Corretor", "select", brokerOptions, true], ["checkIn", "Entrada", "date", null, true, todayIso()], ["checkInTime", "Horario check-in", "time", null, false, "14:00"], ["checkOut", "Saida", "date", null, true, addDays(todayIso(), 3)], ["checkOutTime", "Horario check-out", "time", null, false, "11:00"], ["guests", "Adultos", "number", null, false, 2], ["children", "Criancas", "number", null, false, 0], ["pets", "Pet", "select", [["nao", "Nao"], ["sim", "Sim"]]], ["paymentStatus", "Pagamento", "select", [["pendente", "Pendente"], ["parcial", "Parcial"], ["pago", "Pago"], ["cortesia", "Cortesia"]], false, "pendente"], ["isAirbnb", "Reserva atraves do Airbnb", "checkbox", null, false, "nao"], ["reservationTotal", "Valor total da reserva", "number", null, true, reservationTotal], ["commissionAlreadyDeducted", "Comissao ja compensada no valor da reserva", "checkbox", null, false, "nao"], ["dailyRate", "Diaria calculada", "number", null, false, record.dailyRate ?? 0, true], ["cleaningFee", "Taxa limpeza", "number", null, false, 0], ["discount", "Desconto", "number", null, false, 0], ["deposit", "Sinal", "number", null, false, 0], ["firstPaymentDate", "Data", "date"], ["secondPayment", "2ª Parcela", "number", null, false, 0], ["secondPaymentDueDate", "Vencimento", "date"], ["secondPaymentPaid", "2ª parcela paga (dar baixa)", "checkbox", null, false, "nao"], ["finalPayment", "Parcela final", "number", null, false, 0], ["finalPaymentDueDate", "Vencimento", "date"], ["finalPaymentPaid", "Parcela final paga (dar baixa)", "checkbox", null, false, "nao"], ["issueDate", "Data de emissao do contrato", "date", null, false, todayIso()], ["cancellationPolicy", "Politica de cancelamento", "text", null, false, "Nao reembolsavel."], ["paymentInstructions", "Instrucoes de pagamento", "textarea"], ["contractNotes", "Observacoes especificas do contrato", "textarea"], ["notes", "Observacoes internas", "textarea"]
     ],
     expenses: [
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
@@ -1392,6 +1394,9 @@ function fieldsFor(collection, record = {}) {
 function openForm(collection, id = null) {
   const dialog = document.querySelector("#recordDialog");
   const fields = document.querySelector("#formFields");
+  const form = document.querySelector("#recordForm");
+  const dialogActions = dialog.querySelector(".dialog-actions");
+  dialogActions?.remove();
   const record = id ? state[collection].find((item) => item.id === id) : {};
   const label = collectionLabels[collection]?.[0] || "registro";
   dialog.dataset.collection = collection;
@@ -1399,6 +1404,15 @@ function openForm(collection, id = null) {
   dialog.classList.toggle("reservation-dialog", collection === "contracts");
   document.querySelector("#dialogTitle").textContent = id ? `Editar ${label}` : `Novo ${label}`;
   fields.innerHTML = fieldsFor(collection, record).map(fieldHtml).join("");
+  dialogActions?.classList.toggle("reservation-payment-actions", collection === "contracts");
+  if (collection === "contracts") {
+    const cancellationField = fields.querySelector('[data-field-key="cancellationPolicy"]');
+    cancellationField?.classList.add("reservation-cancellation-policy");
+    if (cancellationField && dialogActions) cancellationField.after(dialogActions);
+    else if (dialogActions) form.append(dialogActions);
+  } else if (dialogActions) {
+    form.append(dialogActions);
+  }
   bindFormEnhancements(collection);
   dialog.showModal();
 }
@@ -1581,7 +1595,7 @@ function validateContract(contract) {
     const second = toNumber(contract.secondPayment);
     const final = toNumber(contract.finalPayment);
     const total = toNumber(contract.reservationTotal);
-    if (first <= 0 || !contract.firstPaymentDate) return "Informe o valor e a data da 1ª parcela.";
+    if (first <= 0 || !contract.firstPaymentDate) return "Informe o valor e a data do sinal.";
     if ((second > 0 && !contract.secondPaymentDueDate) || (!second && contract.secondPaymentDueDate)) return "Informe juntos o valor e a data de vencimento da 2ª parcela.";
     if ((final > 0 && !contract.finalPaymentDueDate) || (!final && contract.finalPaymentDueDate)) return "Informe juntos o valor e a data de vencimento da parcela final.";
     if (first + second + final > total) return "A soma dos pagamentos não pode ultrapassar o valor total da reserva.";
@@ -2101,7 +2115,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.50-auto-20260803-1542");
+  url.searchParams.set("v", "2.1.51-auto-20260803-1602");
   return url.toString();
 }
 
@@ -2133,7 +2147,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.50-auto-20260803-1542");
+  location.replace("login.html?v=2.1.51-auto-20260803-1602");
 }
 
 async function handleSyncAction(action) {
@@ -2338,6 +2352,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
