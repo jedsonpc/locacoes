@@ -125,6 +125,8 @@
       .install-button.visible {
         display: block;
       }
+      .link-button { margin-top: 8px; background: transparent; color: #0f766e; }
+      .hidden { display: none !important; }
       .status {
         display: none;
         margin-top: 14px;
@@ -173,6 +175,7 @@
         <input id="password" type="password" autocomplete="current-password" required />
         <button id="togglePassword" class="password-toggle" type="button">Exibir</button>
       </div>
+      <button id="forgotPassword" class="link-button" type="button">Esqueci minha senha</button>
       <button id="submitBtn" type="submit">Entrar no app</button>
       <button id="installBtn" class="install-button" type="button">
         Instalar aplicativo no celular
@@ -180,14 +183,23 @@
       <div class="status" id="status"></div>
       <p class="hint">Use somente usuarios cadastrados e autorizados no projeto Supabase gestao-locacoes.</p>
     </form>
+    <form class="login-shell hidden" id="recoveryForm">
+      <div class="brand"><div><h1 id="recoveryTitle">Redefinir senha</h1><span id="recoverySubtitle">Informe e confirme sua nova senha.</span></div></div>
+      <div id="recoveryEmailFields" class="hidden"><label for="recoveryEmail">E-mail cadastrado</label><input id="recoveryEmail" type="email" autocomplete="email" /></div>
+      <div id="recoveryPasswordFields"><label for="newPassword">Nova senha</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password" /><label for="confirmPassword">Confirmar nova senha</label><input id="confirmPassword" type="password" minlength="8" autocomplete="new-password" /></div>
+      <button id="recoverySubmit" type="submit">Salvar nova senha</button>
+      <button id="backToLogin" class="link-button" type="button">Voltar ao login</button>
+      <div class="status" id="recoveryStatus"></div>
+    </form>
 
     <script src="login-update.js?v=20260731" data-app-name="Cupe Beach Living"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=2.1.51-auto-20260803-1602"></script>
-    <script src="supabase-sync.js?v=2.1.51-auto-20260803-1602"></script>
+    <script src="supabase-config.js?v=2.1.51-auto-20260804-2230"></script>
+    <script src="supabase-sync.js?v=2.1.51-auto-20260804-2230"></script>
     <script>
       const offlineUserKey = "app-locacao-last-online-user-v1";
       let deferredInstallPrompt = null;
+      const recoveryFromLink = /type=(recovery|invite)/.test(location.hash + location.search);
 
       window.addEventListener("beforeinstallprompt", (event) => {
         event.preventDefault();
@@ -257,6 +269,12 @@
         try {
           await window.LocacoesSupabaseSync.restoreSession();
           const user = window.LocacoesSupabaseSync.getUser();
+          if (recoveryFromLink) {
+            document.getElementById("loginForm").classList.add("hidden");
+            document.getElementById("recoveryForm").classList.remove("hidden");
+            document.getElementById("recoveryTitle").textContent = /type=invite/.test(location.hash + location.search) ? "Ativar seu acesso" : "Redefinir senha";
+            return;
+          }
           if (user) {
             cacheUser(user);
             location.replace("index.html");
@@ -296,10 +314,52 @@
         document.getElementById("togglePassword").textContent = visible ? "Exibir" : "Ocultar";
       });
 
+      document.getElementById("forgotPassword").addEventListener("click", () => {
+        document.getElementById("loginForm").classList.add("hidden");
+        document.getElementById("recoveryForm").classList.remove("hidden");
+        document.getElementById("recoveryTitle").textContent = "Recuperar senha";
+        document.getElementById("recoverySubtitle").textContent = "Enviaremos um link seguro para o e-mail cadastrado.";
+        document.getElementById("recoveryEmailFields").classList.remove("hidden");
+        document.getElementById("recoveryPasswordFields").classList.add("hidden");
+        document.getElementById("recoveryEmail").value = document.getElementById("email").value;
+        document.getElementById("recoverySubmit").textContent = "Enviar link";
+      });
+
+      document.getElementById("backToLogin").addEventListener("click", () => location.replace("login.html"));
+      document.getElementById("recoveryForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const status = document.getElementById("recoveryStatus");
+        const button = document.getElementById("recoverySubmit");
+        button.disabled = true;
+        try {
+          if (!window.LocacoesSupabaseSync) throw new Error("Modulo Supabase nao carregado.");
+          if (!document.getElementById("recoveryEmailFields").classList.contains("hidden")) {
+            const email = document.getElementById("recoveryEmail").value.trim();
+            if (!email) throw new Error("Informe o e-mail cadastrado.");
+            await window.LocacoesSupabaseSync.requestPasswordReset(email, new URL("login.html?type=recovery", location.href).href);
+            status.textContent = "Se o e-mail estiver cadastrado, o link foi enviado. Verifique também a pasta de spam.";
+            status.className = "status info";
+          } else {
+            const password = document.getElementById("newPassword").value;
+            if (password.length < 8) throw new Error("A senha deve ter pelo menos 8 caracteres.");
+            if (password !== document.getElementById("confirmPassword").value) throw new Error("As senhas não coincidem.");
+            await window.LocacoesSupabaseSync.updatePassword(password);
+            location.replace("index.html");
+          }
+        } catch (error) {
+          status.textContent = "Não foi possível concluir: " + (error.message || error);
+          status.className = "status";
+        } finally {
+          status.style.display = "block";
+          button.disabled = false;
+        }
+      });
+
       boot();
     </script>
   </body>
 </html>
+
 
 
 

@@ -45,11 +45,18 @@
     return client;
   }
 
+  function hasLocacaoAccess(account) {
+    if (!account) return false;
+    if (String(account.email || "").toLowerCase() === "edson@cupe.com") return true;
+    return account.app_metadata?.app_access?.locacao?.active === true;
+  }
+
   async function restoreSession() {
     const sb = ensureClient();
     const { data, error } = await sb.auth.getUser();
     if (error) throw error;
-    user = data.user || null;
+    user = hasLocacaoAccess(data.user) ? data.user : null;
+    if (data.user && !user) await sb.auth.signOut();
     emit(user ? `Conectado como ${user.email}` : "Supabase aguardando login.");
     return user;
   }
@@ -59,6 +66,10 @@
     const sb = ensureClient();
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    if (!hasLocacaoAccess(data.user)) {
+      await sb.auth.signOut();
+      throw new Error("Este usuário não possui acesso ao App Locação.");
+    }
     user = data.user;
     emit(`Conectado como ${user.email}`);
     return user;
@@ -69,6 +80,40 @@
     await sb.auth.signOut();
     user = null;
     emit("Supabase desconectado.");
+  }
+
+  async function invokeUserManagement(action, payload = {}) {
+    const sb = ensureClient();
+    const { data, error } = await sb.functions.invoke("manage-users", { body: { action, appId: "locacao", ...payload } });
+    if (error) {
+      try {
+        const details = await error.context?.clone?.().json();
+        if (details?.error || details?.message) throw new Error(details.error || details.message);
+      } catch (detailsError) {
+        if (detailsError?.message !== error.message) throw detailsError;
+      }
+      throw error;
+    }
+    if (data?.error) throw new Error(data.error);
+    return data || {};
+  }
+
+  const inviteAccessUser = (payload) => invokeUserManagement("invite", payload);
+  const listAccessUsers = () => invokeUserManagement("list");
+  const updateAccessUserRole = (userId, role) => invokeUserManagement("update-role", { userId, role });
+  const deactivateAccessUser = (userId) => invokeUserManagement("deactivate", { userId });
+
+  async function requestPasswordReset(email, redirectTo) {
+    const sb = ensureClient();
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  }
+
+  async function updatePassword(password) {
+    const sb = ensureClient();
+    const { data, error } = await sb.auth.updateUser({ password });
+    if (error) throw error;
+    return data.user;
   }
 
   async function loadRemote() {
@@ -143,6 +188,12 @@
     queueSave,
     flushDurableQueue,
     restoreDurableQueue,
+    inviteAccessUser,
+    listAccessUsers,
+    updateAccessUserRole,
+    deactivateAccessUser,
+    requestPasswordReset,
+    updatePassword,
     getUser: () => user,
     getStatus: () => status,
     onStatus: (handler) => {

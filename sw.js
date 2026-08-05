@@ -1,4 +1,4 @@
-﻿const appVersion = "local-2.1.51-auto-20260803-1602";
+﻿const appVersion = "local-2.1.51-auto-20260804-2230";
 const appVersionCurrent = "local-2.1.47-offline-20260730";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersionCurrent}-login-update-prompt-20260731`;
@@ -54,6 +54,7 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
 
 
 

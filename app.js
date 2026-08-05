@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260803-1602";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260804-2230";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -19,6 +19,8 @@ const uid = () => crypto.randomUUID?.() || `id-${Date.now().toString(36)}-${Math
 
 let route = new URLSearchParams(location.search).get("view") || "dashboard";
 let searchTerm = "";
+let accessUsers = [];
+let accessUsersLoading = false;
 
 const navItems = [
   ["dashboard", "Painel", "P", "Operacao de temporada"],
@@ -30,6 +32,7 @@ const navItems = [
   ["expenses", "Despesas", "$", "Custo por unidade"],
   ["reports", "Relatorios", "D", "Resultado e indicadores"],
   ["institutional", "Institucional", "S", "Sobre Privacidade e LGPD"],
+  ["users", "Usuários", "U", "Cadastros e permissões"],
   ["settings", "Gestao", "G", "Backup Nuvem e Versao"]
 ];
 
@@ -663,7 +666,7 @@ function render() {
   const item = navItems.find(([id]) => id === route) || navItems[0];
   document.querySelector("#pageTitle").textContent = item[1];
   document.querySelector("#pageKicker").textContent = item[3];
-  const views = { dashboard, contracts, calendar: calendarView, apartments, clients, brokers, expenses, reports: reportsView, institutional: institutionalView, settings: settingsView };
+  const views = { dashboard, contracts, calendar: calendarView, apartments, clients, brokers, expenses, reports: reportsView, institutional: institutionalView, users: usersView, settings: settingsView };
   document.querySelector("#app").innerHTML = (views[route] || dashboard)();
   updateTopbarAccess();
   bindViewEvents();
@@ -1326,6 +1329,68 @@ function settingsView() {
   </div>`;
 }
 
+function currentUserRole() {
+  const user = window.LocacoesSupabaseSync?.getUser?.();
+  return String(user?.app_metadata?.app_access?.locacao?.role || user?.app_metadata?.role || user?.user_metadata?.role || "consulta").toLowerCase();
+}
+
+function canManageUsers() {
+  const user = window.LocacoesSupabaseSync?.getUser?.();
+  const explicitRole = String(user?.app_metadata?.app_access?.locacao?.role || user?.app_metadata?.role || user?.user_metadata?.role || "").toLowerCase();
+  return Boolean(user) && (String(user.email || "").toLowerCase() === "edson@cupe.com" || ["admin", "administrador", "owner", "proprietario"].includes(explicitRole));
+}
+
+function usersView() {
+  if (!canManageUsers()) return `<section class="panel"><h2>Usuários</h2><p class="muted block-help">Somente administradores podem cadastrar e gerenciar usuários.</p></section>`;
+  queueMicrotask(loadAccessUsers);
+  return `<div class="grid two-col">
+    <form class="panel" id="accessForm"><div class="toolbar"><div><p class="eyebrow">Acesso</p><h2>Cadastrar usuário</h2></div></div><div class="form-grid compact-form"><div class="field"><label for="accessName">Nome</label><input id="accessName" name="name" required autocomplete="off" /></div><div class="field"><label for="accessEmail">E-mail</label><input id="accessEmail" name="email" type="email" required autocomplete="off" /></div><div class="field"><label for="accessRole">Perfil</label><select id="accessRole" name="role"><option value="consulta">Consulta</option><option value="operacional" selected>Operacional</option><option value="financeiro">Financeiro</option><option value="admin">Administrador</option></select></div></div><button class="primary-button" type="submit">Cadastrar e enviar convite</button><p class="muted block-help" id="accessStatus">O usuário receberá um e-mail para definir a própria senha.</p></form>
+    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Permissões</p><h2>Usuários cadastrados</h2></div><button class="ghost-button" data-refresh-users type="button">Atualizar</button></div><div id="accessUsers">${renderAccessUsers()}</div></section>
+  </div>`;
+}
+
+function renderAccessUsers() {
+  if (accessUsersLoading && !accessUsers.length) return empty("Carregando usuários...");
+  if (!accessUsers.length) return empty("Nenhum usuário cadastrado.");
+  return table(["Nome", "E-mail", "Perfil", "Status"], accessUsers.map((item) => [escapeHtml(item.name || item.email), escapeHtml(item.email || "-"), `<select data-user-role="${escapeHtml(item.user_id)}"><option value="consulta" ${item.role === "consulta" ? "selected" : ""}>Consulta</option><option value="operacional" ${item.role === "operacional" ? "selected" : ""}>Operacional</option><option value="financeiro" ${item.role === "financeiro" ? "selected" : ""}>Financeiro</option><option value="admin" ${item.role === "admin" ? "selected" : ""}>Administrador</option></select>`, item.active ? `<button class="ghost-button" data-deactivate-user="${escapeHtml(item.user_id)}" type="button">Desativar</button>` : "Desativado"]));
+}
+
+async function loadAccessUsers(force = false) {
+  if (!canManageUsers() || accessUsersLoading || (!force && accessUsers.length)) return;
+  accessUsersLoading = true;
+  try {
+    const result = await window.LocacoesSupabaseSync.listAccessUsers();
+    accessUsers = result.users || [];
+  } catch (error) {
+    toast(error.message || "Não foi possível carregar os usuários.");
+  } finally {
+    accessUsersLoading = false;
+    if (route === "users") {
+      const target = document.querySelector("#accessUsers");
+      if (target) target.innerHTML = renderAccessUsers();
+    }
+  }
+}
+
+async function inviteAccessUser(form) {
+  const status = document.querySelector("#accessStatus");
+  const button = form.querySelector("button[type='submit']");
+  const values = Object.fromEntries(new FormData(form));
+  button.disabled = true;
+  if (status) status.textContent = "Enviando convite com segurança...";
+  try {
+    await window.LocacoesSupabaseSync.inviteAccessUser({ ...values, redirectTo: new URL("login.html?type=invite", WEB_ACCESS_URL).href });
+    form.reset();
+    accessUsers = [];
+    await loadAccessUsers(true);
+    if (status) status.textContent = "Convite enviado. O usuário definirá a senha pelo e-mail recebido.";
+  } catch (error) {
+    if (status) status.textContent = `Não foi possível enviar o convite: ${error.message || error}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function table(headers, rows) {
   return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
@@ -1936,6 +2001,16 @@ function importBackup(file) {
 }
 
 function bindViewEvents() {
+  document.querySelector("#accessForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    inviteAccessUser(event.currentTarget);
+  });
+  document.querySelectorAll("[data-user-role]").forEach((select) => select.addEventListener("change", async (event) => {
+    try {
+      await window.LocacoesSupabaseSync.updateAccessUserRole(event.target.dataset.userRole, event.target.value);
+      toast("Perfil atualizado.");
+    } catch (error) { toast(error.message || "Falha ao atualizar perfil."); }
+  }));
   document.querySelector("#contractFilterStart")?.addEventListener("change", (event) => {
     state.settings.contractFilterStart = event.target.value;
     saveState("contract_filter_start");
@@ -2115,7 +2190,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260803-1602");
+  url.searchParams.set("v", "2.1.51-auto-20260804-2230");
   return url.toString();
 }
 
@@ -2147,7 +2222,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260803-1602");
+  location.replace("login.html?v=2.1.51-auto-20260804-2230");
 }
 
 async function handleSyncAction(action) {
@@ -2189,6 +2264,13 @@ async function handleSyncAction(action) {
 }
 
 document.addEventListener("click", (event) => {
+  const refreshUsers = event.target.closest("[data-refresh-users]");
+  if (refreshUsers) { accessUsers = []; loadAccessUsers(true); return; }
+  const deactivateUser = event.target.closest("[data-deactivate-user]");
+  if (deactivateUser) {
+    if (confirm("Desativar o acesso deste usuário?")) window.LocacoesSupabaseSync.deactivateAccessUser(deactivateUser.dataset.deactivateUser).then(() => { accessUsers = []; loadAccessUsers(true); }).catch((error) => toast(error.message || "Falha ao desativar usuário."));
+    return;
+  }
   const clearPeriodReportBtn = event.target.closest("[data-clear-period-report]");
   if (clearPeriodReportBtn) {
     state.settings.reportPeriodStart = "";
@@ -2352,6 +2434,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
