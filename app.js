@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260804-2251";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260805-0709";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -2144,7 +2144,13 @@ function setCloudStatus(text) {
 
 function cacheOfflineUser(user) {
   if (!user?.id && !user?.email) return;
-  localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({ id: user.id || user.email, email: user.email || "", cachedAt: new Date().toISOString() }));
+  localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({
+    id: user.id || user.email,
+    email: user.email || "",
+    name: user.user_metadata?.name || user.user_metadata?.full_name || "",
+    role: user.app_metadata?.app_access?.locacao?.role || user.app_metadata?.role || user.user_metadata?.role || "consulta",
+    cachedAt: new Date().toISOString()
+  }));
 }
 
 function getCachedOfflineUser() {
@@ -2156,18 +2162,27 @@ function getCachedOfflineUser() {
 }
 
 function getCurrentAccessUser() {
+  const roleNames = { admin: "Administrador", administrador: "Administrador", diretoria: "Diretoria", financeiro: "Financeiro", operacional: "Operacional", consulta: "Consulta" };
+  const displayName = (account) => {
+    const explicit = String(account?.name || account?.user_metadata?.name || account?.user_metadata?.full_name || "").trim();
+    if (explicit) return explicit;
+    const localPart = String(account?.email || "Usuário").split("@")[0].replace(/[._-]+/g, " ").trim();
+    return localPart.replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("pt-BR")) || "Usuário";
+  };
   const onlineUser = window.LocacoesSupabaseSync?.getUser?.();
   if (onlineUser) {
+    const role = String(onlineUser.app_metadata?.app_access?.locacao?.role || onlineUser.app_metadata?.role || onlineUser.user_metadata?.role || "consulta").toLowerCase();
     return {
-      email: onlineUser.email || onlineUser.user_metadata?.email || onlineUser.id || "usuario conectado",
-      mode: "Supabase"
+      name: displayName(onlineUser),
+      profile: roleNames[role] || role
     };
   }
   const offlineUser = getCachedOfflineUser();
   if (offlineUser) {
+    const role = String(offlineUser.role || "consulta").toLowerCase();
     return {
-      email: offlineUser.email || offlineUser.id || "usuario offline",
-      mode: navigator.onLine ? "Sessao local" : "Offline"
+      name: displayName(offlineUser),
+      profile: roleNames[role] || role
     };
   }
   return null;
@@ -2176,7 +2191,7 @@ function getCurrentAccessUser() {
 function updateTopbarAccess() {
   const user = getCurrentAccessUser();
   const userBadge = document.querySelector("#currentUserBadge");
-  if (userBadge) userBadge.textContent = user ? `${user.email} - ${user.mode}` : "Usuario nao identificado";
+  if (userBadge) userBadge.textContent = user ? `${user.name} — ${user.profile}` : "Usuário não identificado";
 
   const version = document.querySelector("#topVersionLabel");
   if (version) version.textContent = APP_VERSION_LABEL;
@@ -2194,7 +2209,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260804-2251");
+  url.searchParams.set("v", "2.1.51-auto-20260805-0709");
   return url.toString();
 }
 
@@ -2226,7 +2241,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260804-2251");
+  location.replace("login.html?v=2.1.51-auto-20260805-0709");
 }
 
 async function handleSyncAction(action) {
@@ -2438,6 +2453,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

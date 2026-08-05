@@ -194,8 +194,8 @@
 
     <script src="login-update.js?v=20260731" data-app-name="Cupe Beach Living"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=2.1.51-auto-20260804-2251"></script>
-    <script src="supabase-sync.js?v=2.1.51-auto-20260804-2251"></script>
+    <script src="supabase-config.js?v=2.1.51-auto-20260805-0709"></script>
+    <script src="supabase-sync.js?v=2.1.51-auto-20260805-0709"></script>
     <script>
       const offlineUserKey = "app-locacao-last-online-user-v1";
       let deferredInstallPrompt = null;
@@ -240,6 +240,8 @@
         localStorage.setItem(offlineUserKey, JSON.stringify({
           id: user.id || user.email,
           email: user.email || "",
+          name: user.user_metadata?.name || user.user_metadata?.full_name || "",
+          role: user.app_metadata?.app_access?.locacao?.role || user.app_metadata?.role || user.user_metadata?.role || "consulta",
           cachedAt: new Date().toISOString()
         }));
       }
@@ -359,6 +361,7 @@
     </script>
   </body>
 </html>
+
 
 
 
