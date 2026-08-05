@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260804-2231";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260804-2242";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -1321,7 +1321,7 @@ function settingsView() {
   const syncSettings = loadSupabaseSettings();
   const syncUser = window.LocacoesSupabaseSync?.getUser?.();
   const syncStatus = window.LocacoesSupabaseSync?.getStatus?.() || "Aguardando configuracao.";
-  return `<div class="grid two-col">
+  return `<div class="grid two-col access-management-page">
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Governanca</p><h2>Backup e dados</h2></div></div><div class="action-grid"><button class="primary-button" data-backup="download" type="button">Baixar backup JSON</button><button class="ghost-button" data-backup="import" type="button">Importar backup</button><button class="ghost-button" data-backup="restore" type="button">Restaurar exemplo de temporada</button><button class="ghost-button" data-backup="snapshot" type="button">Salvar ponto de restauracao</button></div><p class="muted block-help">Os dados ficam neste dispositivo e tambem podem ser sincronizados com Supabase quando voce entrar na nuvem.</p></section>
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Base</p><h2>Registros</h2></div></div><div class="list">${counts}</div></section>
     <section class="panel"><div class="toolbar"><div><p class="eyebrow">Supabase</p><h2>Sincronizacao em nuvem</h2></div><span class="status ${syncUser ? "ok" : "warn"}">${syncUser ? "conectado" : "desconectado"}</span></div><div class="form-grid compact-form"><div class="field full"><label for="supabase-url">URL do projeto</label><input id="supabase-url" type="url" value="${escapeHtml(syncSettings.url || "")}" placeholder="https://xxxx.supabase.co" /></div><div class="field full"><label for="supabase-key">Publishable ou anon public key</label><input id="supabase-key" type="password" value="${escapeHtml(syncSettings.anonKey || "")}" placeholder="sb_publishable_... ou eyJ..." /></div><div class="field"><label for="supabase-email">E-mail</label><input id="supabase-email" type="email" value="${escapeHtml(syncSettings.email || "")}" placeholder="voce@email.com" /></div><div class="field"><label for="supabase-password">Senha</label><input id="supabase-password" type="password" placeholder="Senha do usuario no Supabase" /></div></div><div class="action-grid cloud-actions"><button class="primary-button" data-sync="save-config" type="button">Salvar configuracao</button><button class="ghost-button" data-sync="login" type="button">Entrar</button><button class="ghost-button" data-sync="pull" type="button">Baixar nuvem</button><button class="ghost-button" data-sync="push" type="button">Enviar agora</button><button class="ghost-button" data-sync="logout" type="button">Sair</button></div><p class="muted block-help" id="cloud-sync-status">${escapeHtml(syncStatus)}</p></section>
@@ -1345,14 +1345,15 @@ function usersView() {
   queueMicrotask(loadAccessUsers);
   return `<div class="grid two-col">
     <form class="panel" id="accessForm"><div class="toolbar"><div><p class="eyebrow">Acesso</p><h2>Cadastrar usuário</h2></div></div><div class="form-grid compact-form"><div class="field"><label for="accessName">Nome</label><input id="accessName" name="name" required autocomplete="off" /></div><div class="field"><label for="accessEmail">E-mail</label><input id="accessEmail" name="email" type="email" required autocomplete="off" /></div><div class="field"><label for="accessRole">Perfil</label><select id="accessRole" name="role"><option value="consulta">Consulta</option><option value="operacional" selected>Operacional</option><option value="financeiro">Financeiro</option><option value="admin">Administrador</option></select></div></div><button class="primary-button" type="submit">Cadastrar e enviar convite</button><p class="muted block-help" id="accessStatus">O usuário receberá um e-mail para definir a própria senha.</p></form>
-    <section class="panel"><div class="toolbar"><div><p class="eyebrow">Permissões</p><h2>Usuários cadastrados</h2></div><button class="ghost-button" data-refresh-users type="button">Atualizar</button></div><div id="accessUsers">${renderAccessUsers()}</div></section>
+    <section class="panel access-users-panel"><div class="toolbar"><div><p class="eyebrow">Permissões</p><h2>Usuários cadastrados</h2></div><button class="ghost-button" data-refresh-users type="button">Atualizar</button></div><div id="accessUsers">${renderAccessUsers()}</div></section>
   </div>`;
 }
 
 function renderAccessUsers() {
   if (accessUsersLoading && !accessUsers.length) return empty("Carregando usuários...");
   if (!accessUsers.length) return empty("Nenhum usuário cadastrado.");
-  return table(["Nome", "E-mail", "Perfil", "Status"], accessUsers.map((item) => [escapeHtml(item.name || item.email), escapeHtml(item.email || "-"), `<select data-user-role="${escapeHtml(item.user_id)}"><option value="consulta" ${item.role === "consulta" ? "selected" : ""}>Consulta</option><option value="operacional" ${item.role === "operacional" ? "selected" : ""}>Operacional</option><option value="financeiro" ${item.role === "financeiro" ? "selected" : ""}>Financeiro</option><option value="admin" ${item.role === "admin" ? "selected" : ""}>Administrador</option></select>`, item.active ? `<button class="ghost-button" data-deactivate-user="${escapeHtml(item.user_id)}" type="button">Desativar</button>` : "Desativado"]));
+  const currentId = window.LocacoesSupabaseSync?.getUser?.()?.id;
+  return `<div class="table-wrap access-users-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Ação</th></tr></thead><tbody>${accessUsers.map((item) => `<tr><td><strong>${escapeHtml(item.name || item.email)}</strong></td><td>${escapeHtml(item.email || "-")}</td><td><select class="access-role-select" data-user-role="${escapeHtml(item.user_id)}"><option value="consulta" ${item.role === "consulta" ? "selected" : ""}>Consulta</option><option value="operacional" ${item.role === "operacional" ? "selected" : ""}>Operacional</option><option value="financeiro" ${item.role === "financeiro" ? "selected" : ""}>Financeiro</option><option value="admin" ${item.role === "admin" ? "selected" : ""}>Administrador</option></select></td><td>${item.user_id === currentId ? '<span class="status ok">Usuário atual</span>' : `<button class="ghost-button access-delete-button" data-remove-user="${escapeHtml(item.user_id)}" type="button">Excluir</button>`}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 async function loadAccessUsers(force = false) {
@@ -2190,7 +2191,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260804-2231");
+  url.searchParams.set("v", "2.1.51-auto-20260804-2242");
   return url.toString();
 }
 
@@ -2222,7 +2223,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260804-2231");
+  location.replace("login.html?v=2.1.51-auto-20260804-2242");
 }
 
 async function handleSyncAction(action) {
@@ -2266,9 +2267,9 @@ async function handleSyncAction(action) {
 document.addEventListener("click", (event) => {
   const refreshUsers = event.target.closest("[data-refresh-users]");
   if (refreshUsers) { accessUsers = []; loadAccessUsers(true); return; }
-  const deactivateUser = event.target.closest("[data-deactivate-user]");
-  if (deactivateUser) {
-    if (confirm("Desativar o acesso deste usuário?")) window.LocacoesSupabaseSync.deactivateAccessUser(deactivateUser.dataset.deactivateUser).then(() => { accessUsers = []; loadAccessUsers(true); }).catch((error) => toast(error.message || "Falha ao desativar usuário."));
+  const removeUser = event.target.closest("[data-remove-user]");
+  if (removeUser) {
+    if (confirm("Excluir este usuário do App Locação? O acesso à Imobiliária não será alterado.")) window.LocacoesSupabaseSync.removeAccessUser(removeUser.dataset.removeUser).then(() => { accessUsers = []; loadAccessUsers(true); toast("Usuário excluído do App Locação."); }).catch((error) => toast(error.message || "Falha ao excluir usuário."));
     return;
   }
   const clearPeriodReportBtn = event.target.closest("[data-clear-period-report]");
@@ -2434,7 +2435,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
-
 
 
 

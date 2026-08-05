@@ -33,7 +33,7 @@
       return null;
     }
     client = window.supabase.createClient(settings.url, settings.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     });
     emit("Supabase configurado.");
     return client;
@@ -53,7 +53,21 @@
 
   async function restoreSession() {
     const sb = ensureClient();
-    const { data, error } = await sb.auth.getUser();
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const query = new URLSearchParams(location.search);
+    const accessToken = hash.get("access_token");
+    const refreshToken = hash.get("refresh_token");
+    const authCode = query.get("code");
+    if (accessToken && refreshToken) {
+      const { error: sessionError } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      if (sessionError) throw sessionError;
+    } else if (authCode) {
+      const { error: exchangeError } = await sb.auth.exchangeCodeForSession(authCode);
+      if (exchangeError) throw exchangeError;
+    }
+    const { data: sessionData } = await sb.auth.getSession();
+    const sessionUser = sessionData?.session?.user || null;
+    const { data, error } = sessionUser ? { data: { user: sessionUser }, error: null } : await sb.auth.getUser();
     if (error) throw error;
     user = hasLocacaoAccess(data.user) ? data.user : null;
     if (data.user && !user) await sb.auth.signOut();
@@ -102,6 +116,7 @@
   const listAccessUsers = () => invokeUserManagement("list");
   const updateAccessUserRole = (userId, role) => invokeUserManagement("update-role", { userId, role });
   const deactivateAccessUser = (userId) => invokeUserManagement("deactivate", { userId });
+  const removeAccessUser = (userId) => invokeUserManagement("remove", { userId });
 
   async function requestPasswordReset(email, redirectTo) {
     const sb = ensureClient();
@@ -192,6 +207,7 @@
     listAccessUsers,
     updateAccessUserRole,
     deactivateAccessUser,
+    removeAccessUser,
     requestPasswordReset,
     updatePassword,
     getUser: () => user,

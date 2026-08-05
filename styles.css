@@ -1046,6 +1046,43 @@ h3 {
   overflow-x: auto;
 }
 
+.access-management-page {
+  grid-template-columns: minmax(300px, 0.9fr) minmax(520px, 1.4fr);
+}
+
+.access-users-table table {
+  min-width: 620px;
+  table-layout: auto;
+}
+
+.access-users-table th:nth-child(1) { width: 24%; }
+.access-users-table th:nth-child(2) { width: 32%; }
+.access-users-table th:nth-child(3) { width: 25%; }
+.access-users-table th:nth-child(4) { width: 19%; }
+
+.access-users-table td {
+  max-width: none;
+  overflow-wrap: normal;
+  vertical-align: middle;
+}
+
+.access-role-select {
+  display: block;
+  width: 100%;
+  min-width: 138px;
+  height: 40px;
+  white-space: nowrap;
+}
+
+.access-delete-button {
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .access-management-page { grid-template-columns: 1fr; }
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
