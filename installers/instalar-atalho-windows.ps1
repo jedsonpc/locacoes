@@ -6,6 +6,7 @@ $installApp = Join-Path $installRoot "app"
 $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
 $iconFile = Join-Path $packageRoot "cupe-beach-living.ico"
+$appUrl = "https://locacoes-publish.vercel.app/?v=2.1.53-auto-20260806-anos-filtro"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
 $appVersion = "2.1.24-institucional-20260710"
 $port = 8787
@@ -167,14 +168,22 @@ $startMenuShortcut = Join-Path $startMenuDir $shortcutName
 New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
 
 $shell = New-Object -ComObject WScript.Shell
-$powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+$browserCandidates = @(
+  "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+  "C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+  "C:\Program Files\Google\Chrome\Application\chrome.exe",
+  (Join-Path $env:LOCALAPPDATA "Google\Chrome\Application\chrome.exe")
+)
+$browser = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $browser) { throw "Microsoft Edge ou Google Chrome nao encontrado." }
 
 foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
   $shortcut = $shell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = (Join-Path $packageRoot "login.html")
-  $shortcut.Arguments = ""
+  $shortcut.TargetPath = $browser
+  $shortcut.Arguments = "--app=`"$appUrl`" --start-maximized"
   $shortcut.WorkingDirectory = $packageRoot
-  $shortcut.Description = "Abrir Cupe Beach Living diretamente na tela de login"
+  $shortcut.WindowStyle = 3
+  $shortcut.Description = "Abrir Cupe Beach Living diretamente, sem PowerShell"
   if (Test-Path $iconFile) {
     $shortcut.IconLocation = "$iconFile,0"
   }

@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Port = 8770
-$Url = "http://127.0.0.1:$Port/login.html?v=2.1.41-hospedes-20260717"
+$Url = "http://127.0.0.1:$Port/login.html?v=2.1.54-auto-20260807-manutencao"
 $PidFile = Join-Path $AppDir "locacoes-server.pid"
 
 function Test-AppServer {
@@ -26,9 +26,9 @@ if (-not (Test-AppServer)) {
   }
 
   $arguments = if ($pythonCommand.Name -eq "py.exe") {
-    @("-3", "-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", $AppDir)
+    @("-3", "-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", "`"$AppDir`"")
   } else {
-    @("-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", $AppDir)
+    @("-m", "http.server", "$Port", "--bind", "127.0.0.1", "--directory", "`"$AppDir`"")
   }
   $server = Start-Process -FilePath $pythonCommand.Source -ArgumentList $arguments -WorkingDirectory $AppDir -WindowStyle Hidden -PassThru
   Set-Content -LiteralPath $PidFile -Value $server.Id -Encoding ASCII

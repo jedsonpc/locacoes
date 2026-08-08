@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260805-0709";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260807-2146";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -217,6 +217,7 @@ function getById(collection, id) {
 }
 
 function contractBrokerPercent(contract) {
+  if (contract?.isAirbnb === true || contract?.isAirbnb === "sim") return 0;
   if (contract?.commissionAlreadyDeducted === true || contract?.commissionAlreadyDeducted === "sim") return 0;
   if (!contract?.brokerId) return 0;
   const broker = getById("brokers", contract.brokerId);
@@ -278,9 +279,10 @@ function normalizeClient(client = {}) {
 function normalizeContract(contract = {}) {
   const received = toNumber(contract.deposit);
   const legacyCompletedStay = contract.isAirbnb === undefined && String(contract.checkOut || "") < todayIso();
+  const isAirbnb = contract.isAirbnb === true || contract.isAirbnb === "sim";
   return {
     ...contract,
-    commissionAlreadyDeducted: contract.commissionAlreadyDeducted === true || contract.commissionAlreadyDeducted === "sim" ? "sim" : "nao",
+    commissionAlreadyDeducted: isAirbnb || contract.commissionAlreadyDeducted === true || contract.commissionAlreadyDeducted === "sim" ? "sim" : "nao",
     hasFormalContract: contract.hasFormalContract || "sim",
     checkInTime: contract.checkInTime || "14:00",
     checkOutTime: contract.checkOutTime || "11:00",
@@ -291,7 +293,7 @@ function normalizeContract(contract = {}) {
     finalPaymentPaid: contract.finalPaymentPaid === true || contract.finalPaymentPaid === "sim" ? "sim" : "nao",
     paymentStatus: legacyCompletedStay ? "pago" : (contract.paymentStatus || "pendente"),
     paymentConfirmed: legacyCompletedStay || contract.paymentConfirmed === "sim" || contract.paymentStatus === "pago" ? "sim" : "nao",
-    isAirbnb: contract.isAirbnb === "sim" ? "sim" : "nao",
+    isAirbnb: isAirbnb ? "sim" : "nao",
     firstPaymentDate: contract.firstPaymentDate || "",
     secondPaymentDueDate: contract.secondPaymentDueDate || contract.balanceDueDate || "",
     finalPaymentDueDate: contract.finalPaymentDueDate || "",
@@ -518,6 +520,16 @@ function contractTotals(contract) {
 
 function monthlyContractRevenue(contract, month) {
   const occupiedNights = occupancyDays(contract, month);
+  const totalNights = Math.max(1, nights(contract.checkIn, contract.checkOut));
+  return contractTotals(contract).total * (occupiedNights / totalNights);
+}
+
+function contractRevenueForPeriod(contract, start, end) {
+  if (!start || !end || start > end || contract.status === "cancelada") return 0;
+  const begin = parseDate(contract.checkIn) > parseDate(start) ? parseDate(contract.checkIn) : parseDate(start);
+  const periodFinish = parseDate(addDays(end, 1));
+  const finish = parseDate(contract.checkOut) < periodFinish ? parseDate(contract.checkOut) : periodFinish;
+  const occupiedNights = Math.max(0, Math.round((finish - begin) / oneDay));
   const totalNights = Math.max(1, nights(contract.checkIn, contract.checkOut));
   return contractTotals(contract).total * (occupiedNights / totalNights);
 }
@@ -878,7 +890,7 @@ function calendarEventsForDate(date, apartmentId = "") {
   const checkouts = state.contracts
     .filter((contract) => {
       if (apartmentId && contract.apartmentId !== apartmentId) return false;
-      return contract.status !== "cancelada" && parseDate(contract.checkOut).getTime() === date.getTime();
+      return !["cancelada", "manutencao"].includes(contract.status) && parseDate(contract.checkOut).getTime() === date.getTime();
     })
     .map((contract) => ({ contract, type: "checkout", date: eventDate }));
   return [...bookings, ...checkouts];
@@ -912,6 +924,10 @@ function calendarEventHtml(event) {
   const brokerLine = brokerName ? `<small class="event-broker">Cor: ${escapeHtml(shortName(brokerName))}</small>` : "";
   const operationalLines = calendarOperationalLines(event);
   const guestsLabel = calendarGuestsLabel(contract);
+  if (contract.status === "manutencao") {
+    const reason = calendarReservationObservation(contract);
+    return `<span class="event maintenance" title="${escapeHtml(aptName)} - Manutencao - Periodo bloqueado para reservas${reason ? ` - ${escapeHtml(reason)}` : ""}"><strong>${escapeHtml(aptName)}</strong><small class="event-client">MANUTENCAO</small><small class="event-maintenance">Periodo bloqueado</small>${reason ? `<small>${escapeHtml(reason)}</small>` : ""}</span>`;
+  }
   return `<span class="event ${isCheckout ? "checkout" : ""} ${isCourtesy ? "courtesy" : ""} ${hasConflict(contract) ? "blocked" : ""} ${operationalLines.length ? "has-alert" : ""}"${colorStyle(apt?.colorName || apt?.name)} title="${escapeHtml(aptName)} - ${escapeHtml(clientName)} - Hóspedes: ${escapeHtml(guestsLabel)}${isCourtesy ? " - Cortesia" : ""}${brokerName ? ` - Corretor: ${escapeHtml(brokerName)}` : ""}${operationalLines.length ? ` - ${escapeHtml(operationalLines.join(" - "))}` : ""}${isCheckout ? " - Saida" : ""}"><strong>${escapeHtml(aptName)}</strong><small class="event-client">${isCheckout ? "Saída: " : ""}${escapeHtml(shortName(clientName))}</small><small class="event-guests" aria-label="Hóspedes: ${escapeHtml(guestsLabel)}">Hósp.: ${escapeHtml(guestsLabel)}</small>${isCourtesy ? `<small class="event-courtesy">Cortesia</small>` : ""}${brokerLine}${operationalLines.map((line) => `<small class="event-alert">${escapeHtml(line)}</small>`).join("")}</span>`;
 }
 
@@ -1046,13 +1062,13 @@ function reportsView() {
   const previousContracts = validPeriod ? reportContractsForPeriod(previousStart, previousEnd, apartmentId, false) : [];
   const expenses = validPeriod ? reportExpensesForPeriod(periodStart, periodEnd, apartmentId) : [];
   const previousExpenses = validPeriod ? reportExpensesForPeriod(previousStart, previousEnd, apartmentId) : [];
-  const current = reportPeriodMetrics(activeContracts, expenses);
-  const previous = reportPeriodMetrics(previousContracts, previousExpenses);
+  const current = reportPeriodMetrics(activeContracts, expenses, periodStart, periodEnd);
+  const previous = reportPeriodMetrics(previousContracts, previousExpenses, previousStart, previousEnd);
   const chartContracts = validPeriod ? state.contracts.filter((contract) => contract.status !== "cancelada" && (!apartmentId || contract.apartmentId === apartmentId) && String(contract.checkIn || "") <= periodEnd && String(contract.checkOut || "") > periodStart) : [];
   const buckets = reportPeriodBuckets(periodStart, periodEnd, chartContracts);
   const brokerRows = state.brokers.map((broker) => {
     const contracts = activeContracts.filter((contract) => contract.brokerId === broker.id);
-    return [escapeHtml(broker.name), contracts.length, money(contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0))];
+    return [escapeHtml(broker.name), contracts.length, money(contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, periodStart, periodEnd) * (contractBrokerPercent(contract) / 100), 0))];
   }).filter((row) => row[1]);
   const periodRows = listedContracts.map((contract) => {
     const totals = contractTotals(contract);
@@ -1062,21 +1078,21 @@ function reportsView() {
       escapeHtml(getById("clients", contract.clientId)?.name || "-"),
       escapeHtml(getById("apartments", contract.apartmentId)?.name || "-"),
       escapeHtml(broker?.name || "Sem corretor"),
-      contract.paymentStatus === "cortesia" ? "Cortesia" : money(totals.total),
-      contract.commissionAlreadyDeducted === "sim" ? "Ja compensada" : money(totals.commission),
+      contract.paymentStatus === "cortesia" ? "Cortesia" : money(contractRevenueForPeriod(contract, periodStart, periodEnd)),
+      contract.commissionAlreadyDeducted === "sim" || contract.isAirbnb === "sim" ? "Ja compensada" : money(contractRevenueForPeriod(contract, periodStart, periodEnd) * (contractBrokerPercent(contract) / 100)),
       status(contract.status)
     ];
   });
   const filterError = validPeriod ? "" : `<p class="report-filter-error">A data final precisa ser igual ou posterior a data inicial.</p>`;
   const printOptions = [["all", "Todos os relatorios"], ["kpis", "Resumo do periodo"], ["comparison", "Comparativo anual"], ["evolution", "Graficos de evolucao"], ["annual", "Faturamento anual por corretor"], ["detail", "Reservas detalhadas"], ["brokers", "Comissoes"], ["expenses", "Despesas"]];
   const scopeTag = reportScopeTag(apartmentId);
-  return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2>${scopeTag}</div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
+  return `<div class="reports-page">${contractReportPanel()}<section class="panel report-filter-panel"><div class="toolbar"><div><p class="eyebrow">Periodo livre</p><h2>Dashboard de reservas e faturamento</h2>${scopeTag}</div><div class="filters"><label class="field">Data inicial<input id="reportPeriodStart" type="date" value="${escapeHtml(periodStart)}"></label><label class="field compact-date-field">Ano inicial<input id="reportPeriodStartYear" type="number" min="2000" max="2100" step="1" inputmode="numeric" value="${escapeHtml(String(periodStart).slice(0, 4))}"></label><label class="field">Data final<input id="reportPeriodEnd" type="date" value="${escapeHtml(periodEnd)}"></label><label class="field compact-date-field">Ano final<input id="reportPeriodEndYear" type="number" min="2000" max="2100" step="1" inputmode="numeric" value="${escapeHtml(String(periodEnd).slice(0, 4))}"></label><label class="field">Apartamento<select id="reportApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-clear-period-report type="button">Mes atual</button><label class="field">Relatorio<select id="reportPrintSelection">${printOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><button class="primary-button" data-print-reports type="button">Imprimir / PDF</button></div></div>${filterError}</section>
     <div class="grid stats report-kpis" data-report-key="kpis">${metric("Reservas", current.reservations, reportDeltaText(current.reservations, previous.reservations, "mesmo periodo do ano anterior"), "info")}${metric("Faturamento", money(current.revenue), reportDeltaText(current.revenue, previous.revenue, "mesmo periodo do ano anterior"), "ok")}${metric("Comissoes", money(current.commission), "a pagar no periodo", "warn")}${metric("Resultado", money(current.net), `${money(current.expenses)} em despesas`, current.net >= 0 ? "ok" : "danger")}${metric("Diarias de cortesia", current.courtesyDays, "ocupadas sem cobranca", "info")}</div>
     <div data-report-key="comparison">${reportComparisonPanel(current, previous, previousStart, previousEnd, apartmentId)}</div>
     <div data-report-key="evolution">${reportEvolutionPanel(buckets, apartmentId)}</div>
     <div data-report-key="annual">${annualBrokerRevenuePanel(annualYear, apartmentId)}</div>
     <div class="grid two-col report-paired-sections"><section class="panel" data-report-key="brokers"><div class="toolbar"><div><p class="eyebrow">Corretores</p><h2>Comissoes no periodo</h2>${scopeTag}</div></div>${brokerRows.length ? table(["Corretor", "Reservas", "Comissao"], brokerRows) : empty("Nenhuma comissao no periodo.")}</section><section class="panel" data-report-key="expenses"><div class="toolbar"><div><p class="eyebrow">Custos</p><h2>Despesas no periodo</h2>${scopeTag}</div></div>${expenses.length ? table(["Data", "Apartamento", "Categoria", "Valor"], expenses.map((expense) => { const apt = getById("apartments", expense.apartmentId); return [dateBR(expense.date), escapeHtml(apt?.name || "Geral"), escapeHtml(expense.category), money(expense.amount)]; })) : empty("Nenhuma despesa no periodo.")}</section></div>
-    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2>${scopeTag}</div></div><p class="muted block-help">${listedContracts.length} reserva(s), considerando a data de entrada entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section></div>`;
+    <section class="panel" data-report-key="detail"><div class="toolbar"><div><p class="eyebrow">Detalhamento</p><h2>Reservas no periodo</h2>${scopeTag}</div></div><p class="muted block-help">${listedContracts.length} reserva(s) com diarias hospedadas entre ${dateBR(periodStart)} e ${dateBR(periodEnd)}. Os valores sao proporcionais as diarias do periodo.</p>${periodRows.length ? table(["Periodo", "Cliente", "Apartamento", "Corretor", "Valor", "Comissao", "Status"], periodRows) : empty("Nenhuma reserva encontrada no periodo informado.")}</section></div>`;
 }
 
 function reportScopeTag(apartmentId = "") {
@@ -1090,6 +1106,14 @@ function sameDatePreviousYear(isoDate) {
   const month = date.getUTCMonth();
   const day = Math.min(date.getUTCDate(), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
   return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
+}
+
+function dateWithYear(isoDate, year) {
+  const date = parseDate(isoDate);
+  const selectedYear = Math.min(2100, Math.max(2000, Number(year) || date.getUTCFullYear()));
+  const month = date.getUTCMonth();
+  const day = Math.min(date.getUTCDate(), new Date(Date.UTC(selectedYear, month + 1, 0)).getUTCDate());
+  return new Date(Date.UTC(selectedYear, month, day)).toISOString().slice(0, 10);
 }
 
 function printReports() {
@@ -1106,7 +1130,7 @@ function reportContractsForPeriod(start, end, apartmentId = "", includeCancelled
   return [...state.contracts]
     .filter((contract) => includeCancelled || contract.status !== "cancelada")
     .filter((contract) => !apartmentId || contract.apartmentId === apartmentId)
-    .filter((contract) => String(contract.checkIn || "") >= start && String(contract.checkIn || "") <= end)
+    .filter((contract) => String(contract.checkIn || "") <= end && String(contract.checkOut || "") > start)
     .sort((a, b) => String(a.checkIn || "").localeCompare(String(b.checkIn || "")) || String(a.checkOut || "").localeCompare(String(b.checkOut || "")));
 }
 
@@ -1114,9 +1138,9 @@ function reportExpensesForPeriod(start, end, apartmentId = "") {
   return state.expenses.filter((expense) => String(expense.date || "") >= start && String(expense.date || "") <= end && (!apartmentId || expense.apartmentId === apartmentId));
 }
 
-function reportPeriodMetrics(contracts, expenses) {
-  const revenue = contracts.reduce((sum, contract) => sum + contractTotals(contract).total, 0);
-  const commission = contracts.reduce((sum, contract) => sum + contractTotals(contract).commission, 0);
+function reportPeriodMetrics(contracts, expenses, start, end) {
+  const revenue = contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, start, end), 0);
+  const commission = contracts.reduce((sum, contract) => sum + contractRevenueForPeriod(contract, start, end) * (contractBrokerPercent(contract) / 100), 0);
   const expenseTotal = expenses.reduce((sum, expense) => sum + toNumber(expense.amount), 0);
   const courtesyDays = contracts.filter((contract) => contract.paymentStatus === "cortesia").reduce((sum, contract) => sum + nights(contract.checkIn, contract.checkOut), 0);
   return { reservations: contracts.length, revenue, commission, expenses: expenseTotal, net: revenue - commission - expenseTotal, courtesyDays };
@@ -1199,7 +1223,7 @@ function reportBarChart(title, buckets, key, formatter, tooltipFormatter = forma
 function annualBrokerRevenuePanel(year, apartmentId = "") {
   const monthLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const availableYears = [...new Set([new Date().getFullYear(), Number(year), ...state.contracts.map((contract) => Number(String(contract.checkIn || "").slice(0, 4))).filter((item) => item >= 2000 && item <= 2100)])].sort((a, b) => b - a);
-  const yearFilter = `<label class="field compact-date-field">Ano<select id="reportAnnualYear">${availableYears.map((item) => `<option value="${item}" ${item === Number(year) ? "selected" : ""}>${item}</option>`).join("")}</select></label>`;
+  const yearFilter = `<label class="field compact-date-field">Ano<input id="reportAnnualYear" type="number" min="2000" max="2100" step="1" inputmode="numeric" value="${Number(year)}" list="reportAnnualYears"><datalist id="reportAnnualYears">${availableYears.map((item) => `<option value="${item}"></option>`).join("")}</datalist></label>`;
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
   const contracts = state.contracts.filter((contract) => contract.status !== "cancelada" && String(contract.checkIn || "") <= yearEnd && String(contract.checkOut || "") > yearStart && (!apartmentId || contract.apartmentId === apartmentId));
@@ -1450,6 +1474,12 @@ function fieldsFor(collection, record = {}) {
       ["date", "Data", "date", null, true, todayIso()], ["apartmentId", "Apartamento", "select", () => [["", "Despesa geral"], ...state.apartments.map((apt) => [apt.id, apt.name])]], ["category", "Categoria", "select", [["Limpeza", "Limpeza"], ["Manutencao", "Manutencao"], ["Condominio", "Condominio"], ["Energia", "Energia"], ["Agua", "Agua"], ["Internet", "Internet"], ["Enxoval", "Enxoval"], ["Marketing", "Marketing"], ["Outros", "Outros"]]], ["amount", "Valor", "number", null, true], ["paid", "Status", "select", [["pago", "Pago"], ["pendente", "Pendente"]]], ["description", "Descricao", "textarea"]
     ]
   }[collection] || [];
+  if (collection === "contracts") {
+    const statusField = fields.find(([key]) => key === "status");
+    if (statusField && !statusField[3].some(([value]) => value === "manutencao")) {
+      statusField[3].splice(-1, 0, ["manutencao", "Manutencao"]);
+    }
+  }
   return fields.map(([key, label, type, options, required, fallback, readonly]) => {
     const visibleLabel = collection === "contracts" && key === "clientId"
       ? "Hóspede"
@@ -1491,9 +1521,30 @@ function bindFormEnhancements(collection) {
     input.addEventListener("blur", () => input.value = brazilianValue(input.value));
   });
   if (collection === "contracts") {
+    const reservationStatusSelect = document.querySelector("#status");
     const formalContractSelect = document.querySelector("#hasFormalContract");
     const paymentStatusSelect = document.querySelector("#paymentStatus");
     const courtesyMoneyFields = ["reservationTotal", "dailyRate", "cleaningFee", "discount", "deposit", "secondPayment", "finalPayment"];
+    const maintenanceVisibleFields = new Set(["code", "status", "apartmentId", "checkIn", "checkOut", "contractNotes", "notes"]);
+    const updateMaintenanceFields = () => {
+      const isMaintenance = reservationStatusSelect?.value === "manutencao";
+      document.querySelectorAll("#formFields [data-field-key]").forEach((field) => {
+        const key = field.dataset.fieldKey;
+        if (maintenanceVisibleFields.has(key)) return;
+        field.hidden = isMaintenance;
+        field.querySelectorAll("input, select, textarea").forEach((input) => input.disabled = isMaintenance);
+      });
+      document.querySelector('[data-field-key="contractNotes"] label')?.replaceChildren(document.createTextNode(isMaintenance ? "Motivo/servico da manutencao" : "Observacoes especificas do contrato"));
+    };
+    reservationStatusSelect?.addEventListener("change", () => {
+      const maintenance = reservationStatusSelect.value === "manutencao";
+      if (!maintenance) updateMaintenanceFields();
+      updateCourtesyFields();
+      updateAirbnbCommission();
+      updateInstallmentFields();
+      updateContractIssueDateVisibility();
+      if (maintenance) updateMaintenanceFields();
+    });
     const updateCourtesyFields = () => {
       const isCourtesy = paymentStatusSelect?.value === "cortesia";
       courtesyMoneyFields.forEach((id) => {
@@ -1508,7 +1559,19 @@ function bindFormEnhancements(collection) {
       if (commissionInput) commissionInput.disabled = isCourtesy;
       commissionField?.classList.toggle("courtesy-disabled", isCourtesy);
     };
-    paymentStatusSelect?.addEventListener("change", updateCourtesyFields);
+    paymentStatusSelect?.addEventListener("change", () => {
+      updateCourtesyFields();
+      updateAirbnbCommission();
+    });
+    const airbnbInput = document.querySelector("#isAirbnb");
+    const commissionInput = document.querySelector("#commissionAlreadyDeducted");
+    const updateAirbnbCommission = () => {
+      if (airbnbInput?.checked && commissionInput) commissionInput.checked = true;
+      const commissionField = document.querySelector('[data-field-key="commissionAlreadyDeducted"]');
+      commissionField?.classList.toggle("courtesy-disabled", Boolean(airbnbInput?.checked));
+      if (commissionInput) commissionInput.disabled = Boolean(airbnbInput?.checked) || paymentStatusSelect?.value === "cortesia";
+    };
+    airbnbInput?.addEventListener("change", updateAirbnbCommission);
     const installmentKeys = ["deposit", "firstPaymentDate", "secondPayment", "secondPaymentDueDate", "secondPaymentPaid", "finalPayment", "finalPaymentDueDate", "finalPaymentPaid"];
     const updateInstallmentFields = () => {
       const isPartial = paymentStatusSelect?.value === "parcial";
@@ -1549,7 +1612,9 @@ function bindFormEnhancements(collection) {
     watched.forEach((input) => input.addEventListener("input", updateDailyRate));
     updateDailyRate();
     updateCourtesyFields();
+    updateAirbnbCommission();
     updateInstallmentFields();
+    updateMaintenanceFields();
     return;
   }
   if (collection !== "clients") return;
@@ -1618,6 +1683,16 @@ function submitForm(event) {
   }
 
   if (collection === "contracts") {
+    const isMaintenance = record.status === "manutencao";
+    if (isMaintenance) {
+      Object.assign(record, {
+        hasFormalContract: "nao", clientId: "", brokerId: "", checkInTime: "", checkOutTime: "",
+        guests: 0, children: 0, pets: "nao", paymentStatus: "pendente", isAirbnb: "nao",
+        reservationTotal: 0, dailyRate: 0, cleaningFee: 0, discount: 0, deposit: 0,
+        secondPayment: 0, finalPayment: 0, commissionAlreadyDeducted: "nao", paymentConfirmed: "nao"
+      });
+    }
+    if (record.isAirbnb === "sim") record.commissionAlreadyDeducted = "sim";
     if (record.hasFormalContract === "nao") record.issueDate = "";
     const isCourtesy = record.paymentStatus === "cortesia";
     if (isCourtesy) {
@@ -1655,11 +1730,12 @@ function submitForm(event) {
 
 function validateContract(contract) {
   if (!state.apartments.length) return "Cadastre ao menos um apartamento.";
-  if (!contract.brokerId || !getById("brokers", contract.brokerId)) return "Selecione um corretor cadastrado.";
+  const isMaintenance = contract.status === "manutencao";
+  if (!isMaintenance && (!contract.brokerId || !getById("brokers", contract.brokerId))) return "Selecione um corretor cadastrado.";
   if ((contract.hasFormalContract || "sim") !== "nao" && (!state.clients.length || !contract.clientId)) return "Selecione um cliente para gerar contrato formal.";
   if (parseDate(contract.checkOut) <= parseDate(contract.checkIn)) return "A saida precisa ser posterior a entrada.";
-  if (toNumber(contract.reservationTotal) < Math.max(0, toNumber(contract.cleaningFee) - toNumber(contract.discount))) return "O valor total precisa cobrir a taxa de limpeza, considerando o desconto.";
-  if (contract.paymentStatus === "parcial") {
+  if (!isMaintenance && toNumber(contract.reservationTotal) < Math.max(0, toNumber(contract.cleaningFee) - toNumber(contract.discount))) return "O valor total precisa cobrir a taxa de limpeza, considerando o desconto.";
+  if (!isMaintenance && contract.paymentStatus === "parcial") {
     const first = toNumber(contract.deposit);
     const second = toNumber(contract.secondPayment);
     const final = toNumber(contract.finalPayment);
@@ -1675,7 +1751,8 @@ function validateContract(contract) {
   const conflict = findConflictingContract(contract);
   if (conflict) {
     const apartmentName = getById("apartments", contract.apartmentId)?.name || "este imóvel";
-    return `Já existe uma reserva para ${apartmentName} entre ${dateBR(conflict.checkIn)} e ${dateBR(conflict.checkOut)}. A nova reserva não foi cadastrada.`;
+    const conflictType = conflict.status === "manutencao" ? "uma manutencao" : "uma reserva";
+    return `Já existe ${conflictType} para ${apartmentName} entre ${dateBR(conflict.checkIn)} e ${dateBR(conflict.checkOut)}. O periodo informado permanece bloqueado.`;
   }
   return "";
 }
@@ -2058,7 +2135,7 @@ function bindViewEvents() {
     render();
   });
   document.querySelector("#reportAnnualYear")?.addEventListener("change", (event) => {
-    const selectedYear = event.target.value;
+    const selectedYear = Math.min(2100, Math.max(2000, Number(event.target.value) || new Date().getFullYear()));
     state.settings.reportAnnualYear = selectedYear;
     state.settings.reportPeriodStart = `${selectedYear}-01-01`;
     state.settings.reportPeriodEnd = `${selectedYear}-12-31`;
@@ -2070,9 +2147,21 @@ function bindViewEvents() {
     saveState("report_period_start_change");
     render();
   });
+  document.querySelector("#reportPeriodStartYear")?.addEventListener("change", (event) => {
+    state.settings.reportPeriodStart = dateWithYear(state.settings.reportPeriodStart || `${monthIso()}-01`, event.target.value);
+    saveState("report_period_start_year_change");
+    render();
+  });
   document.querySelector("#reportPeriodEnd")?.addEventListener("change", (event) => {
     state.settings.reportPeriodEnd = event.target.value;
     saveState("report_period_end_change");
+    render();
+  });
+  document.querySelector("#reportPeriodEndYear")?.addEventListener("change", (event) => {
+    const currentMonth = monthIso();
+    const fallbackEnd = `${currentMonth}-${String(monthRange(currentMonth).end.getUTCDate()).padStart(2, "0")}`;
+    state.settings.reportPeriodEnd = dateWithYear(state.settings.reportPeriodEnd || fallbackEnd, event.target.value);
+    saveState("report_period_end_year_change");
     render();
   });
   document.querySelector("#contractReportSelect")?.addEventListener("change", (event) => {
@@ -2209,7 +2298,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260805-0709");
+  url.searchParams.set("v", "2.1.51-auto-20260807-2146");
   return url.toString();
 }
 
@@ -2241,7 +2330,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260805-0709");
+  location.replace("login.html?v=2.1.51-auto-20260807-2146");
 }
 
 async function handleSyncAction(action) {
@@ -2453,6 +2542,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
