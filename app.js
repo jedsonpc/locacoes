@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260807-2146";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260808-1122";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -536,7 +536,13 @@ function contractRevenueForPeriod(contract, start, end) {
 
 function contractTouchesMonth(contract, month) {
   const { start, end } = monthRange(month);
-  return parseDate(contract.checkIn) <= end && parseDate(contract.checkOut) > start && contract.status !== "cancelada";
+  return parseDate(contract.checkIn) <= end && reservationEndExclusive(contract) > start && contract.status !== "cancelada";
+}
+
+// Hospedagens liberam o imovel no dia da saida. Em manutencao, as duas
+// datas informadas pertencem ao bloqueio, portanto a data final e inclusiva.
+function reservationEndExclusive(contract) {
+  return parseDate(contract.status === "manutencao" ? addDays(contract.checkOut, 1) : contract.checkOut);
 }
 
 function occupancyDays(contract, month) {
@@ -544,7 +550,8 @@ function occupancyDays(contract, month) {
   const begin = parseDate(contract.checkIn) > start ? parseDate(contract.checkIn) : start;
   const finishLimit = new Date(end);
   finishLimit.setUTCDate(finishLimit.getUTCDate() + 1);
-  const finish = parseDate(contract.checkOut) < finishLimit ? parseDate(contract.checkOut) : finishLimit;
+  const reservationFinish = reservationEndExclusive(contract);
+  const finish = reservationFinish < finishLimit ? reservationFinish : finishLimit;
   return Math.max(0, Math.round((finish - begin) / oneDay));
 }
 
@@ -555,7 +562,8 @@ function occupiedNightKeys(contracts, start, end) {
   contracts.forEach((contract) => {
     if (!contract.checkIn || !contract.checkOut || contract.status === "cancelada") return;
     const begin = parseDate(contract.checkIn) > rangeStart ? parseDate(contract.checkIn) : rangeStart;
-    const finish = parseDate(contract.checkOut) < rangeFinish ? parseDate(contract.checkOut) : rangeFinish;
+    const reservationFinish = reservationEndExclusive(contract);
+    const finish = reservationFinish < rangeFinish ? reservationFinish : rangeFinish;
     for (let date = begin; date < finish; date = new Date(date.getTime() + oneDay)) {
       const apartmentKey = contract.apartmentId || contract.id;
       keys.add(`${apartmentKey}|${date.toISOString().slice(0, 10)}`);
@@ -572,7 +580,7 @@ function findConflictingContract(contract) {
   if (!contract.apartmentId || !contract.checkIn || !contract.checkOut || contract.status === "cancelada") return false;
   return state.contracts.find((other) => {
     if (other.id === contract.id || other.apartmentId !== contract.apartmentId || other.status === "cancelada") return false;
-    return parseDate(contract.checkIn) < parseDate(other.checkOut) && parseDate(contract.checkOut) > parseDate(other.checkIn);
+    return parseDate(contract.checkIn) < reservationEndExclusive(other) && reservationEndExclusive(contract) > parseDate(other.checkIn);
   });
 }
 
@@ -880,7 +888,7 @@ function calendarHtml(month, apartmentId) {
 function calendarBookingsForDate(date, apartmentId = "") {
   return state.contracts.filter((contract) => {
     if (apartmentId && contract.apartmentId !== apartmentId) return false;
-    return contract.status !== "cancelada" && parseDate(contract.checkIn) <= date && parseDate(contract.checkOut) > date;
+    return contract.status !== "cancelada" && parseDate(contract.checkIn) <= date && reservationEndExclusive(contract) > date;
   });
 }
 
@@ -2298,7 +2306,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260807-2146");
+  url.searchParams.set("v", "2.1.51-auto-20260808-1122");
   return url.toString();
 }
 
@@ -2330,7 +2338,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260807-2146");
+  location.replace("login.html?v=2.1.51-auto-20260808-1122");
 }
 
 async function handleSyncAction(action) {
@@ -2542,6 +2550,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

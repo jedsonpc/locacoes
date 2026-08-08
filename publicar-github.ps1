@@ -59,7 +59,14 @@ function Update-VersionInFile([string]$Path) {
 # conflitos criados por um pull executado somente depois do commit local.
 Invoke-Git pull --rebase origin main
 
-foreach ($file in @("app.js", "index.html", "login.html", "sw.js")) {
+foreach ($file in @(
+  "app.js",
+  "index.html",
+  "login.html",
+  "sw.js",
+  "iniciar-app-locacao.ps1",
+  "installers\instalar-atalho-windows.ps1"
+)) {
   Update-VersionInFile (Join-Path $appRoot $file)
 }
 
