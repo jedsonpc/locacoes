@@ -2,11 +2,74 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1340";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260901-2056";
 const APP_CHANGE_DATE_LABEL = "Verificando atualizacao...";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
+const MOBILE_IDLE_LIMIT_MS = 5 * 60 * 1000;
+const MOBILE_IDLE_WARNING_MS = 60 * 1000;
 const offlineDatabase = window.createOfflineDatabase?.({ dbName: "app-locacao-offline-v1" }) || null;
+
+let mobileIdleTimer = null;
+let mobileIdleCountdownTimer = null;
+let mobileIdleWarning = null;
+
+function isMobileAccess() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia("(max-width: 900px)").matches;
+}
+
+function clearMobileIdleTimeout() {
+  clearTimeout(mobileIdleTimer);
+  clearInterval(mobileIdleCountdownTimer);
+  mobileIdleTimer = null;
+  mobileIdleCountdownTimer = null;
+  mobileIdleWarning?.remove();
+  mobileIdleWarning = null;
+}
+
+async function closeIdleMobileSession() {
+  clearMobileIdleTimeout();
+  try { await window.LocacoesSupabaseSync?.signOut?.(); } catch {}
+  location.replace("login.html?reason=idle");
+}
+
+function showMobileIdleWarning() {
+  if (!isMobileAccess()) return;
+  const deadline = Date.now() + MOBILE_IDLE_WARNING_MS;
+  mobileIdleWarning = document.createElement("div");
+  mobileIdleWarning.className = "idle-session-warning";
+  mobileIdleWarning.setAttribute("role", "alertdialog");
+  mobileIdleWarning.setAttribute("aria-live", "assertive");
+  mobileIdleWarning.innerHTML = `<section><strong>Sessao ociosa</strong><p>Por seguranca, o app sera fechado em <b>60 segundos</b>. Toque em qualquer lugar para continuar usando.</p><button type="button">Continuar no app</button></section>`;
+  document.body.appendChild(mobileIdleWarning);
+  const countdown = mobileIdleWarning.querySelector("b");
+  mobileIdleCountdownTimer = setInterval(() => {
+    const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    if (countdown) countdown.textContent = `${seconds} segundo${seconds === 1 ? "" : "s"}`;
+    if (seconds <= 0) closeIdleMobileSession();
+  }, 250);
+}
+
+function resetMobileIdleTimeout() {
+  if (!isMobileAccess()) {
+    clearMobileIdleTimeout();
+    return;
+  }
+  clearMobileIdleTimeout();
+  mobileIdleTimer = setTimeout(showMobileIdleWarning, MOBILE_IDLE_LIMIT_MS);
+}
+
+function startMobileIdleTimeout() {
+  if (!isMobileAccess()) return;
+  ["pointerdown", "touchstart", "keydown", "scroll", "focus"].forEach((eventName) => {
+    window.addEventListener(eventName, resetMobileIdleTimeout, { passive: true });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) resetMobileIdleTimeout();
+  });
+  window.addEventListener("resize", resetMobileIdleTimeout);
+  resetMobileIdleTimeout();
+}
 
 const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const valueFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2350,7 +2413,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260901-1340");
+  url.searchParams.set("v", "2.1.51-auto-20260901-2056");
   return url.toString();
 }
 
@@ -2379,10 +2442,11 @@ async function copyAccessLink() {
 }
 
 async function logout() {
+  clearMobileIdleTimeout();
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260901-1340");
+  location.replace("login.html?v=2.1.51-auto-20260901-2056");
 }
 
 async function handleSyncAction(action) {
@@ -2555,6 +2619,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!navigator.onLine && getCachedOfflineUser()) {
       document.body.classList.remove("auth-pending");
       render();
+      startMobileIdleTimeout();
       setCloudStatus("Modo offline com ultimo usuario validado.");
       return;
     }
@@ -2583,10 +2648,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     document.body.classList.remove("auth-pending");
     render();
+    startMobileIdleTimeout();
   } catch {
     if (!navigator.onLine && getCachedOfflineUser()) {
       document.body.classList.remove("auth-pending");
       render();
+      startMobileIdleTimeout();
       setCloudStatus("Modo offline com ultimo usuario validado.");
       return;
     }
@@ -2594,6 +2661,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

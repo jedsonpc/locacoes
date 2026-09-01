@@ -372,6 +372,45 @@ h3 {
   border-color: #fecaca;
 }
 
+.idle-session-warning {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.idle-session-warning section {
+  width: min(100%, 390px);
+  padding: 24px;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ink);
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+}
+
+.idle-session-warning strong {
+  display: block;
+  color: var(--brand);
+  font-size: 20px;
+}
+
+.idle-session-warning p { margin: 14px 0 20px; line-height: 1.45; }
+
+.idle-session-warning button {
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
 .icon-button {
   width: 38px;
   padding: 0;
