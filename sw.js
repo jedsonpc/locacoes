@@ -1,5 +1,5 @@
-﻿const appVersion = "local-2.1.51-auto-20260808-1122";
-const appVersionCurrent = "local-2.1.54-auto-20260807-manutencao";
+﻿const appVersion = "local-2.1.51-auto-20260901-1300";
+const appVersionCurrent = "local-2.1.56-calendario-corretor";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersionCurrent}`;
 const staticFiles = [
@@ -54,6 +54,7 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
 
 
 

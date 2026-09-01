@@ -1358,6 +1358,16 @@ th {
   align-items: end;
 }
 
+.broker-calendar-button {
+  background: linear-gradient(135deg, #155e75, #0f766e);
+  border-color: transparent;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+
+.broker-calendar-button:hover {
+  filter: brightness(1.05);
+}
+
 .calendar-mobile-head {
   display: none;
 }

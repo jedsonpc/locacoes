@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260808-1122";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1300";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -57,6 +57,13 @@ function addDays(value, days) {
 
 function dateBR(value) {
   return value ? dateFmt.format(parseDate(value)) : "-";
+}
+
+function dateTimeBR(value) {
+  if (!value) return "Nunca acessou";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Nunca acessou";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 function dateLongBR(value) {
@@ -858,7 +865,7 @@ function contractRow(contract, activeMonth = state.settings.reportMonth || state
 function calendarView() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
-  return `<section class="panel calendar-panel"><div class="calendar-mobile-head"><strong>Calendário</strong><span>Use o celular na horizontal</span><button class="ghost-button" data-close-mobile-calendar type="button">Sair da tela cheia</button></div><div class="toolbar"><div><p class="eyebrow">Ocupação mensal</p><h2>Calendário</h2></div><div class="filters calendar-filters">${calendarMonthYearControls(month)}<label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-calendar-export type="button">Exportar WhatsApp</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar-scroll"><div class="calendar" id="calendarGrid">${calendarHtml(month, apartmentId)}</div></div></section>`;
+  return `<section class="panel calendar-panel"><div class="calendar-mobile-head"><strong>Calendário</strong><span>Use o celular na horizontal</span><button class="ghost-button" data-close-mobile-calendar type="button">Sair da tela cheia</button></div><div class="toolbar"><div><p class="eyebrow">Ocupação mensal</p><h2>Calendário</h2></div><div class="filters calendar-filters">${calendarMonthYearControls(month)}<label class="field">Apartamento<select id="calendarApartment">${optionList("apartments", apartmentId, "Todos")}</select></label><button class="ghost-button" data-calendar-export type="button">Exportar WhatsApp</button><button class="primary-button broker-calendar-button" data-calendar-broker-export type="button">Calendário corretor</button><button class="ghost-button" onclick="window.print()" type="button">Imprimir</button></div></div><div class="calendar-scroll"><div class="calendar" id="calendarGrid">${calendarHtml(month, apartmentId)}</div></div></section>`;
 }
 
 function calendarMonthYearControls(month) {
@@ -1385,7 +1392,7 @@ function renderAccessUsers() {
   if (accessUsersLoading && !accessUsers.length) return empty("Carregando usuários...");
   if (!accessUsers.length) return empty("Nenhum usuário cadastrado.");
   const currentId = window.LocacoesSupabaseSync?.getUser?.()?.id;
-  return `<div class="table-wrap access-users-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Ação</th></tr></thead><tbody>${accessUsers.map((item) => `<tr><td><strong>${escapeHtml(item.name || item.email)}</strong></td><td>${escapeHtml(item.email || "-")}</td><td><select class="access-role-select" data-user-role="${escapeHtml(item.user_id)}"><option value="consulta" ${item.role === "consulta" ? "selected" : ""}>Consulta</option><option value="operacional" ${item.role === "operacional" ? "selected" : ""}>Operacional</option><option value="financeiro" ${item.role === "financeiro" ? "selected" : ""}>Financeiro</option><option value="admin" ${item.role === "admin" ? "selected" : ""}>Administrador</option></select></td><td>${item.user_id === currentId ? '<span class="status ok">Usuário atual</span>' : `<button class="ghost-button access-delete-button" data-remove-user="${escapeHtml(item.user_id)}" type="button">Excluir</button>`}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap access-users-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Último acesso</th><th>Ação</th></tr></thead><tbody>${accessUsers.map((item) => `<tr><td><strong>${escapeHtml(item.name || item.email)}</strong></td><td>${escapeHtml(item.email || "-")}</td><td><select class="access-role-select" data-user-role="${escapeHtml(item.user_id)}"><option value="consulta" ${item.role === "consulta" ? "selected" : ""}>Consulta</option><option value="operacional" ${item.role === "operacional" ? "selected" : ""}>Operacional</option><option value="financeiro" ${item.role === "financeiro" ? "selected" : ""}>Financeiro</option><option value="admin" ${item.role === "admin" ? "selected" : ""}>Administrador</option></select></td><td><span class="access-last-sign-in">${escapeHtml(dateTimeBR(item.last_sign_in_at))}</span></td><td>${item.user_id === currentId ? '<span class="status ok">Usuário atual</span>' : `<button class="ghost-button access-delete-button" data-remove-user="${escapeHtml(item.user_id)}" type="button">Excluir</button>`}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 async function loadAccessUsers(force = false) {
@@ -1814,20 +1821,32 @@ function downloadBlob(filename, blob) {
 async function exportCalendarForWhatsapp() {
   const month = state.settings.month || monthIso();
   const apartmentId = state.settings.calendarApartment || "";
+  return exportCalendarImage({ month, apartmentId, brokerMode: false });
+}
+
+async function exportCalendarForBroker() {
+  const month = state.settings.month || monthIso();
+  const apartmentId = state.settings.calendarApartment || "";
+  return exportCalendarImage({ month, apartmentId, brokerMode: true });
+}
+
+async function exportCalendarImage({ month, apartmentId, brokerMode }) {
   const previewWindow = window.open("", "_blank");
   if (previewWindow) {
     previewWindow.document.write(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gerando calendario...</title></head><body style="font-family:Arial,sans-serif;padding:24px;text-align:center">Gerando imagem JPG...</body></html>`);
     previewWindow.document.close();
   }
   try {
-    const image = calendarWhatsappCanvas(month, apartmentId);
+    const image = calendarWhatsappCanvas(month, apartmentId, brokerMode);
     const jpegBlob = await new Promise((resolve) => image.canvas.toBlob(resolve, "image/jpeg", 0.8));
     if (!jpegBlob) throw new Error("Nao foi possivel gerar JPG.");
-    const filename = `Reservas Cupe Beach - ${calendarMonthYearLabel(month)}.jpg`;
+    const filename = `${brokerMode ? "Calendario Corretor" : "Reservas Cupe Beach"} - ${calendarMonthYearLabel(month)}.jpg`;
     if (previewWindow && !previewWindow.closed) {
       const imageUrl = URL.createObjectURL(jpegBlob);
+      const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(image.summary)}`;
+      const shareButton = brokerMode ? `<button id="shareNative" type="button">Compartilhar imagem</button><a href="${whatsappUrl}" target="_blank" rel="noopener">Abrir WhatsApp Web</a>` : "";
       previewWindow.document.open();
-      previewWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(filename)}</title><style>*{box-sizing:border-box}body{margin:0;padding:12px;background:#0f172a;color:#fff;font-family:Arial,sans-serif;text-align:center}.actions{position:sticky;top:0;z-index:2;padding:10px;background:#0f172a}a{display:inline-block;padding:11px 18px;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;text-decoration:none}p{margin:8px 0 0;color:#cbd5e1;font-size:13px}img{display:block;width:100%;max-width:1080px;height:auto;margin:10px auto 0;background:#fff}</style></head><body><div class="actions"><a href="${imageUrl}" download="${escapeHtml(filename)}">Salvar imagem JPG</a><p>No celular, voce tambem pode tocar e segurar a imagem para compartilhar.</p></div><img src="${imageUrl}" alt="Calendario de reservas ${escapeHtml(calendarMonthYearLabel(month))}"></body></html>`);
+      previewWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(filename)}</title><style>*{box-sizing:border-box}body{margin:0;padding:12px;background:#0f172a;color:#fff;font-family:Arial,sans-serif;text-align:center}.actions{position:sticky;top:0;z-index:2;padding:10px;background:#0f172a}a,button{display:inline-block;margin:4px;padding:11px 18px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;text-decoration:none;font:inherit;cursor:pointer}.broker{background:#2563eb}p{margin:8px 0 0;color:#cbd5e1;font-size:13px}img{display:block;width:100%;max-width:1080px;height:auto;margin:10px auto 0;background:#fff}</style></head><body><div class="actions"><a href="${imageUrl}" download="${escapeHtml(filename)}">Salvar imagem JPG</a>${shareButton}<p>${brokerMode ? "Imagem anonimizada: ocupacoes aparecem apenas como Reservado. O WhatsApp Web usa a conta ativa no navegador." : "No celular, voce tambem pode tocar e segurar a imagem para compartilhar."}</p></div><img src="${imageUrl}" alt="Calendario de reservas ${escapeHtml(calendarMonthYearLabel(month))}"><script>document.getElementById('shareNative')?.addEventListener('click',async()=>{try{const blob=await fetch('${imageUrl}').then(r=>r.blob());const file=new File([blob],'${escapeHtml(filename)}',{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:${JSON.stringify(image.summary)}})}else{window.open('${whatsappUrl}','_blank')}}catch(e){window.open('${whatsappUrl}','_blank')}})<\/script></body></html>`);
       previewWindow.document.close();
       setTimeout(() => URL.revokeObjectURL(imageUrl), 600000);
     } else {
@@ -1835,9 +1854,9 @@ async function exportCalendarForWhatsapp() {
     }
     try {
       await navigator.clipboard.writeText(image.summary);
-      toast("Imagem JPG aberta e resumo copiado.");
+      toast(brokerMode ? "Calendario corretor aberto e resumo copiado." : "Imagem JPG aberta e resumo copiado.");
     } catch {
-      toast("Imagem JPG aberta para visualizar e salvar.");
+      toast(brokerMode ? "Calendario corretor aberto para compartilhar." : "Imagem JPG aberta para visualizar e salvar.");
     }
   } catch (error) {
     if (previewWindow && !previewWindow.closed) previewWindow.close();
@@ -1851,11 +1870,11 @@ function calendarMonthYearLabel(month) {
   return `${monthNames[Math.max(0, Math.min(11, Number(monthNumber) - 1))]} ${year}`;
 }
 
-function calendarWhatsappCanvas(month, apartmentId = "") {
+function calendarWhatsappCanvas(month, apartmentId = "", brokerMode = false) {
   const { start, end } = monthRange(month);
   const monthLabel = calendarMonthYearLabel(month);
   const scope = apartmentId ? getById("apartments", apartmentId)?.name || "Apartamento" : "Todos os apartamentos";
-  const summary = calendarWhatsappSummary(month, apartmentId);
+  const summary = calendarWhatsappSummary(month, apartmentId, brokerMode);
   const summaryLines = summary.split("\n");
   const cells = [];
   for (let item = 0; item < start.getUTCDay(); item += 1) cells.push(null);
@@ -1865,6 +1884,7 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
   const weeks = [];
   for (let item = 0; item < cells.length; item += 7) weeks.push(cells.slice(item, item + 7));
   const eventHeight = (event) => {
+    if (brokerMode) return 35;
     const contract = event.contract || event;
     const client = getById("clients", contract.clientId);
     const courtesyLine = contract.paymentStatus === "cortesia" && event.type !== "checkout" ? 13 : 0;
@@ -1934,11 +1954,25 @@ function calendarWhatsappCanvas(month, apartmentId = "") {
       calendarEventsForDate(date, apartmentId).forEach((event) => {
         const contract = event.contract || event;
         const apt = getById("apartments", contract.apartmentId);
+        const aptName = apt?.name || apt?.unitNumber || "Apto";
+        const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
+        if (brokerMode) {
+          const label = event.type === "checkout" ? "Saida - Reservado" : "Reservado";
+          context.fillStyle = hexToRgba(color, 0.16);
+          context.fillRect(x + 6, eventY, cellWidth - 12, 35);
+          context.fillStyle = color;
+          context.fillRect(x + 6, eventY, 5, 35);
+          context.fillStyle = "#0f172a";
+          context.font = "800 11px Arial";
+          context.fillText(canvasFitText(context, aptName, cellWidth - 28), x + 16, eventY + 13);
+          context.font = "900 10px Arial";
+          context.fillText(canvasFitText(context, label, cellWidth - 28), x + 16, eventY + 27);
+          eventY += 40;
+          return;
+        }
         const client = getById("clients", contract.clientId);
         const brokerName = calendarBrokerLabel(contract, client);
-        const aptName = apt?.name || apt?.unitNumber || "Apto";
         const clientName = client?.name || (contract.hasFormalContract === "nao" ? "Reserva simples" : "Cliente");
-        const color = colorForName(apt?.colorName || apt?.name) || "#2563eb";
         const operationalLines = calendarOperationalLines(event);
         const isCourtesy = contract.paymentStatus === "cortesia" && event.type !== "checkout";
         const itemHeight = 44 + (isCourtesy ? 13 : 0) + (brokerName ? 13 : 0) + operationalLines.length * 13;
@@ -2058,13 +2092,17 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(number >> 16) & 255}, ${(number >> 8) & 255}, ${number & 255}, ${alpha})`;
 }
 
-function calendarWhatsappSummary(month, apartmentId = "") {
+function calendarWhatsappSummary(month, apartmentId = "", brokerMode = false) {
   const contracts = getMonthContracts(month, apartmentId).sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn)));
-  const lines = [`Calendario de ocupacao ${month.split("-").reverse().join("/")}`];
+  const lines = [brokerMode ? `Calendario corretor ${month.split("-").reverse().join("/")}` : `Calendario de ocupacao ${month.split("-").reverse().join("/")}`];
   if (apartmentId) lines.push(`Apartamento: ${getById("apartments", apartmentId)?.name || "-"}`);
   contracts.forEach((contract) => {
-    const client = getById("clients", contract.clientId);
     const apt = getById("apartments", contract.apartmentId);
+    if (brokerMode) {
+      lines.push(`${dateBR(contract.checkIn)} a ${dateBR(contract.checkOut)} - Reservado - ${apt?.name || "Apto"}`);
+      return;
+    }
+    const client = getById("clients", contract.clientId);
     const brokerName = calendarBrokerLabel(contract, client);
     const operational = calendarOperationalLines({ contract, type: "stay", date: contract.checkIn });
     const observation = calendarReservationObservation(contract);
@@ -2178,6 +2216,7 @@ function bindViewEvents() {
     render();
   });
   document.querySelector("[data-calendar-export]")?.addEventListener("click", exportCalendarForWhatsapp);
+  document.querySelector("[data-calendar-broker-export]")?.addEventListener("click", exportCalendarForBroker);
   document.querySelector("[data-toggle-contract-report]")?.addEventListener("click", () => {
     state.settings.showContractReport = state.settings.showContractReport === "sim" ? "nao" : "sim";
     saveState("toggle_contract_report");
@@ -2306,7 +2345,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260808-1122");
+  url.searchParams.set("v", "2.1.51-auto-20260901-1300");
   return url.toString();
 }
 
@@ -2338,7 +2377,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260808-1122");
+  location.replace("login.html?v=2.1.51-auto-20260901-1300");
 }
 
 async function handleSyncAction(action) {
@@ -2550,6 +2589,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 
