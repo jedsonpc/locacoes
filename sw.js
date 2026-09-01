@@ -1,4 +1,4 @@
-﻿const appVersion = "local-2.1.51-auto-20260901-1300";
+﻿const appVersion = "local-2.1.51-auto-20260901-1313";
 const appVersionCurrent = "local-2.1.56-calendario-corretor";
 const cachePrefix = "app-locacao-";
 const cacheName = `${cachePrefix}${appVersionCurrent}`;
@@ -54,6 +54,7 @@ self.addEventListener("fetch", (event) => {
     return Response.error();
   }));
 });
+
 
 
 

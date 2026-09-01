@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1300";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1313";
 const APP_CHANGE_DATE_LABEL = "Alterado em 30/07/2026";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -1814,8 +1814,13 @@ function downloadBlob(filename, blob) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Alguns navegadores iniciam o download no proximo ciclo; revogar de imediato
+  // pode produzir arquivo vazio ou impedir a exportacao.
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 async function exportCalendarForWhatsapp() {
@@ -1843,10 +1848,9 @@ async function exportCalendarImage({ month, apartmentId, brokerMode }) {
     const filename = `${brokerMode ? "Calendario Corretor" : "Reservas Cupe Beach"} - ${calendarMonthYearLabel(month)}.jpg`;
     if (previewWindow && !previewWindow.closed) {
       const imageUrl = URL.createObjectURL(jpegBlob);
-      const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(image.summary)}`;
-      const shareButton = brokerMode ? `<button id="shareNative" type="button">Compartilhar imagem</button><a href="${whatsappUrl}" target="_blank" rel="noopener">Abrir WhatsApp Web</a>` : "";
+      const shareButton = `<button id="shareNative" type="button">Compartilhar imagem</button>`;
       previewWindow.document.open();
-      previewWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(filename)}</title><style>*{box-sizing:border-box}body{margin:0;padding:12px;background:#0f172a;color:#fff;font-family:Arial,sans-serif;text-align:center}.actions{position:sticky;top:0;z-index:2;padding:10px;background:#0f172a}a,button{display:inline-block;margin:4px;padding:11px 18px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;text-decoration:none;font:inherit;cursor:pointer}.broker{background:#2563eb}p{margin:8px 0 0;color:#cbd5e1;font-size:13px}img{display:block;width:100%;max-width:1080px;height:auto;margin:10px auto 0;background:#fff}</style></head><body><div class="actions"><a href="${imageUrl}" download="${escapeHtml(filename)}">Salvar imagem JPG</a>${shareButton}<p>${brokerMode ? "Imagem anonimizada: ocupacoes aparecem apenas como Reservado. O WhatsApp Web usa a conta ativa no navegador." : "No celular, voce tambem pode tocar e segurar a imagem para compartilhar."}</p></div><img src="${imageUrl}" alt="Calendario de reservas ${escapeHtml(calendarMonthYearLabel(month))}"><script>document.getElementById('shareNative')?.addEventListener('click',async()=>{try{const blob=await fetch('${imageUrl}').then(r=>r.blob());const file=new File([blob],'${escapeHtml(filename)}',{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:${JSON.stringify(image.summary)}})}else{window.open('${whatsappUrl}','_blank')}}catch(e){window.open('${whatsappUrl}','_blank')}})<\/script></body></html>`);
+      previewWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(filename)}</title><style>*{box-sizing:border-box}body{margin:0;padding:12px;background:#0f172a;color:#fff;font-family:Arial,sans-serif;text-align:center}.actions{position:sticky;top:0;z-index:2;padding:10px;background:#0f172a}a,button{display:inline-block;margin:4px;padding:11px 18px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;text-decoration:none;font:inherit;cursor:pointer}p{margin:8px 0 0;color:#cbd5e1;font-size:13px}img{display:block;width:100%;max-width:1080px;height:auto;margin:10px auto 0;background:#fff;cursor:pointer}.notice{min-height:18px;color:#fde68a}</style></head><body><div class="actions"><a id="downloadImage" href="${imageUrl}" download="${escapeHtml(filename)}">Salvar imagem JPG</a>${shareButton}<p>${brokerMode ? "Imagem anonimizada: ocupacoes aparecem apenas como Reservado." : "Imagem completa do calendário."}</p><p id="shareNotice" class="notice">No computador, salve o JPG e anexe-o pelo clipe do WhatsApp.</p></div><img id="calendarImage" src="${imageUrl}" alt="Calendario de reservas ${escapeHtml(calendarMonthYearLabel(month))}" title="Clique para compartilhar ou salvar a imagem"><script>const shareImage=async()=>{try{const blob=await fetch(${JSON.stringify(imageUrl)}).then(r=>r.blob());const file=new File([blob],${JSON.stringify(filename)},{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});return}document.getElementById('downloadImage').click();document.getElementById('shareNotice').textContent='Imagem JPG salva. No WhatsApp, clique no clipe e selecione este arquivo.'}catch(e){document.getElementById('downloadImage').click();document.getElementById('shareNotice').textContent='Imagem JPG salva. No WhatsApp, clique no clipe e selecione este arquivo.'}};document.getElementById('shareNative').addEventListener('click',shareImage);document.getElementById('calendarImage').addEventListener('click',shareImage);<\/script></body></html>`);
       previewWindow.document.close();
       setTimeout(() => URL.revokeObjectURL(imageUrl), 600000);
     } else {
@@ -2345,7 +2349,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260901-1300");
+  url.searchParams.set("v", "2.1.51-auto-20260901-1313");
   return url.toString();
 }
 
@@ -2377,7 +2381,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260901-1300");
+  location.replace("login.html?v=2.1.51-auto-20260901-1313");
 }
 
 async function handleSyncAction(action) {
@@ -2589,6 +2593,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

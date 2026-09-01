@@ -2,7 +2,7 @@
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Port = 8770
-$Url = "http://127.0.0.1:$Port/login.html?v=2.1.51-auto-20260901-1300"
+$Url = "http://127.0.0.1:$Port/login.html?v=2.1.51-auto-20260901-1313"
 $PidFile = Join-Path $AppDir "locacoes-server.pid"
 
 function Test-AppServer {
@@ -63,5 +63,6 @@ if ($browserPath) {
 } else {
   Start-Process $Url
 }
+
 
 
