@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1322";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260901-1340";
 const APP_CHANGE_DATE_LABEL = "Verificando atualizacao...";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -2333,10 +2333,11 @@ function updateTopbarAccess() {
   const userBadge = document.querySelector("#currentUserBadge");
   if (userBadge) userBadge.textContent = user ? `${user.name} — ${user.profile}` : "Usuário não identificado";
 
+  const dynamicVersion = window.LocacoesVersionDetails;
   const version = document.querySelector("#topVersionLabel");
-  if (version) version.textContent = APP_VERSION_LABEL;
+  if (version) version.textContent = dynamicVersion?.label || APP_VERSION_LABEL;
   const accessDate = document.querySelector("#topAccessLabel");
-  if (accessDate) accessDate.textContent = APP_CHANGE_DATE_LABEL;
+  if (accessDate) accessDate.textContent = dynamicVersion?.date ? `Atualizado em ${dynamicVersion.date}` : APP_CHANGE_DATE_LABEL;
 
   const access = document.querySelector("#topAccessLabel");
   if (access && !access.textContent) access.textContent = location.host || "Acesso local";
@@ -2349,7 +2350,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260901-1322");
+  url.searchParams.set("v", "2.1.51-auto-20260901-1340");
   return url.toString();
 }
 
@@ -2381,7 +2382,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260901-1322");
+  location.replace("login.html?v=2.1.51-auto-20260901-1340");
 }
 
 async function handleSyncAction(action) {
@@ -2593,6 +2594,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

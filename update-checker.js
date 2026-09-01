@@ -22,7 +22,11 @@
     const label = match ? `v${match[1]}` : rawVersion ? `v${rawVersion.replace(/^v/, "")}` : "Versao indisponivel";
     const publishedAt = version?.deployedAt ? new Date(version.deployedAt) : null;
     const date = publishedAt && !Number.isNaN(publishedAt.getTime())
-      ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Fortaleza" }).format(publishedAt)
+      ? new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+        timeZone: "America/Fortaleza"
+      }).format(publishedAt)
       : "data indisponivel";
     return { label, date };
   }
@@ -30,6 +34,7 @@
   function showVersion(version) {
     if (!version?.version) return;
     const details = versionDetails(version);
+    window.LocacoesVersionDetails = details;
     const sideLabel = document.getElementById("versionLabel");
     if (sideLabel) sideLabel.textContent = `${details.label} · ${details.date}`;
     const topLabel = document.getElementById("topVersionLabel");
