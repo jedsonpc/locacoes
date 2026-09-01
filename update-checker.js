@@ -16,6 +16,28 @@
     }
   }
 
+  function versionDetails(version) {
+    const rawVersion = String(version?.version || "").replace(/^local-/, "");
+    const match = rawVersion.match(/^(\d+\.\d+\.\d+)(?:-auto-\d{8}-\d{4})?$/);
+    const label = match ? `v${match[1]}` : rawVersion ? `v${rawVersion.replace(/^v/, "")}` : "Versao indisponivel";
+    const publishedAt = version?.deployedAt ? new Date(version.deployedAt) : null;
+    const date = publishedAt && !Number.isNaN(publishedAt.getTime())
+      ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Fortaleza" }).format(publishedAt)
+      : "data indisponivel";
+    return { label, date };
+  }
+
+  function showVersion(version) {
+    if (!version?.version) return;
+    const details = versionDetails(version);
+    const sideLabel = document.getElementById("versionLabel");
+    if (sideLabel) sideLabel.textContent = `${details.label} · ${details.date}`;
+    const topLabel = document.getElementById("topVersionLabel");
+    if (topLabel) topLabel.textContent = details.label;
+    const topDate = document.getElementById("topAccessLabel");
+    if (topDate) topDate.textContent = `Atualizado em ${details.date}`;
+  }
+
   async function registerWorker() {
     if (!("serviceWorker" in navigator)) {
       setStatus("Offline indisponivel neste navegador.");
@@ -32,10 +54,10 @@
   window.addEventListener("DOMContentLoaded", async () => {
     registerWorker();
     const version = await loadVersion();
-    const label = document.getElementById("versionLabel");
-    if (version?.version && label) label.textContent = version.version;
+    showVersion(version);
     document.getElementById("checkUpdateBtn")?.addEventListener("click", async () => {
       const next = await loadVersion();
+      showVersion(next);
       setStatus(next?.version ? `Versao atual: ${next.version}` : "Nao foi possivel verificar a versao.");
     });
   });
