@@ -2,7 +2,7 @@
 const BACKUP_KEY = "app-locacao-backups-v1";
 const SUPABASE_SETTINGS_KEY = "app-locacao-supabase-settings-v1";
 const OFFLINE_USER_KEY = "app-locacao-last-online-user-v1";
-const APP_VERSION_LABEL = "v2.1.51-auto-20260901-2056";
+const APP_VERSION_LABEL = "v2.1.51-auto-20260902-0625";
 const APP_CHANGE_DATE_LABEL = "Verificando atualizacao...";
 const WEB_ACCESS_URL = "https://locacoes-publish.vercel.app/";
 const oneDay = 86400000;
@@ -2413,7 +2413,7 @@ function getAccessUrl() {
   const loginPath = "login.html";
   url.pathname = url.pathname.endsWith("/") ? `${url.pathname}${loginPath}` : url.pathname.replace(/[^/]*$/, loginPath);
   url.searchParams.set("brand", "cupe-beach-living");
-  url.searchParams.set("v", "2.1.51-auto-20260901-2056");
+  url.searchParams.set("v", "2.1.51-auto-20260902-0625");
   return url.toString();
 }
 
@@ -2446,7 +2446,7 @@ async function logout() {
   try {
     await window.LocacoesSupabaseSync?.signOut?.();
   } catch {}
-  location.replace("login.html?v=2.1.51-auto-20260901-2056");
+  location.replace("login.html?v=2.1.51-auto-20260902-0625");
 }
 
 async function handleSyncAction(action) {
@@ -2661,6 +2661,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     location.replace("login.html");
   }
 });
+
 
 
 

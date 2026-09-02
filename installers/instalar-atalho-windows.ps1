@@ -6,7 +6,7 @@ $installApp = Join-Path $installRoot "app"
 $startScript = Join-Path $installRoot "iniciar-locacoes.ps1"
 $serverScript = Join-Path $installRoot "servidor-locacoes.ps1"
 $iconFile = Join-Path $packageRoot "cupe-beach-living.ico"
-$appUrl = "https://locacoes-publish.vercel.app/?v=2.1.51-auto-20260901-2056"
+$appUrl = "https://locacoes-publish.vercel.app/?v=2.1.51-auto-20260902-0625"
 $sourceStartScript = Join-Path $packageRoot "iniciar-app-locacao.ps1"
 $appVersion = "2.1.24-institucional-20260710"
 $port = 8787
@@ -194,6 +194,7 @@ Write-Host ""
 Write-Host "Instalacao concluida."
 Write-Host "Atalho criado na Area de Trabalho e no Menu Iniciar: Cupe Beach Living"
 Write-Host "Arquivos instalados em: $installRoot"
+
 
 
 
