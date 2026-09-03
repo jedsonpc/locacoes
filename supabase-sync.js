@@ -91,7 +91,9 @@
 
   async function signOut() {
     const sb = ensureClient();
-    await sb.auth.signOut();
+    // O escopo local remove imediatamente os tokens deste aparelho, mesmo se a
+    // rede cair justamente durante o encerramento por inatividade.
+    await sb.auth.signOut({ scope: "local" });
     user = null;
     emit("Supabase desconectado.");
   }
@@ -158,7 +160,7 @@
       data: snapshot,
       updated_at: new Date().toISOString()
     };
-    const { error } = await sb.from(table).upsert(payload, { onConflict: "user_id,id" });
+    const { error } = await sb.from(table).upsert(payload, { onConflict: "id" });
     if (error) throw error;
     if (offlineDatabase) {
       const pending = await offlineDatabase.getPending(OUTBOX_KEY).catch(() => null);
